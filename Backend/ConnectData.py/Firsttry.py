@@ -13,15 +13,40 @@ def main():
         cursor = connection.cursor()
 
         # Streamlit-App-Layout
-        st.title("PostgreSQL-Datenbank mit Streamlit verbinden")
+        st.title("Top 10 umsatzstärksten Stores")
 
         # SQL-Abfrage ausführen und Daten abrufen
-        query = "SELECT * FROM orders;"
+        query = """
+            SELECT
+    s.storeID,
+    s.zipcode,
+    s.state_abbr,
+    s.city,
+    s.state,
+    SUM(p.Price) AS total_revenue
+FROM
+    stores s
+JOIN
+    orders o ON s.storeID = o.storeID
+JOIN
+    orderItems oi ON o.orderID = oi.orderID
+JOIN
+    products p ON oi.SKU = p.SKU
+GROUP BY
+    s.storeID,
+    s.zipcode,
+    s.state_abbr,
+    s.city,
+    s.state
+ORDER BY
+    total_revenue DESC
+LIMIT 10;
+        """
         cursor.execute(query)
         data = cursor.fetchall()
 
         # Daten anzeigen
-        st.write("Daten aus der PostgreSQL-Datenbank:")
+        st.write("Top 10 umsatzstärksten Stores:")
         st.table(data)
 
     except psycopg2.Error as e:
