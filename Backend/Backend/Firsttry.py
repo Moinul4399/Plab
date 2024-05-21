@@ -8,7 +8,7 @@ def get_top_stores():
     try:
         # Verbindung zur PostgreSQL-Datenbank herstellen
         connection = psycopg2.connect(
-            host="localhost",
+            host="192.168.2.36",
             database="pizzadatabase",
             user="postgres",
             password="Moinul439!!"
