@@ -6,16 +6,13 @@ app = Flask(__name__)
 @app.route('/api/top_stores')
 def get_top_stores():
     try:
-        # Verbindung zur PostgreSQL-Datenbank herstellen
         connection = psycopg2.connect(
-            host="10.54.114.117",
+            host="localhost",
             database="pizzadatabase",
             user="postgres",
             password="Moinul439!!"
         )
         cursor = connection.cursor()
-
-        # SQL-Abfrage ausführen und Daten abrufen
         query = """
             SELECT
                 s.storeID,
@@ -44,27 +41,37 @@ def get_top_stores():
         """
         cursor.execute(query)
         data = cursor.fetchall()
-
-        # Daten im JSON-Format zurückgeben
-        top_stores = []
-        for row in data:
-            store = {
-                'storeID': row[0],
-                'zipcode': row[1],
-                'state_abbr': row[2],
-                'city': row[3],
-                'state': row[4],
-                'total_revenue': row[5]
-            }
-            top_stores.append(store)
-
+        top_stores = [{'storeID': row[0], 'zipcode': row[1], 'state_abbr': row[2], 'city': row[3], 'state': row[4], 'total_revenue': row[5]} for row in data]
         return jsonify({'top_stores': top_stores})
-
     except psycopg2.Error as e:
         return jsonify({'error': f"Fehler beim Verbinden zur PostgreSQL-Datenbank: {e}"})
-
     finally:
-        # Verbindung schließen
+        if 'connection' in locals():
+            cursor.close()
+            connection.close()
+
+@app.route('/api/unique_pizza_ingredients')
+def unique_pizza_ingredients():
+    try:
+        connection = psycopg2.connect(
+            host="localhost",
+            database="pizzadatabase",
+            user="postgres",
+            password="Moinul439!!"
+        )
+        cursor = connection.cursor()
+        query = """
+            SELECT DISTINCT name, ingredients
+            FROM products
+            ORDER BY name;
+        """
+        cursor.execute(query)
+        data = cursor.fetchall()
+        unique_ingredients = [{'name': row[0], 'ingredients': row[1]} for row in data]
+        return jsonify({'unique_pizza_ingredients': unique_ingredients})
+    except psycopg2.Error as e:
+        return jsonify({'error': f"Fehler beim Verbinden zur PostgreSQL-Datenbank: {e}"})
+    finally:
         if 'connection' in locals():
             cursor.close()
             connection.close()
