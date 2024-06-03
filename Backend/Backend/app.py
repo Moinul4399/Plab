@@ -1,12 +1,12 @@
 from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
+import pandas as pd
 from sqlalchemy import text
 import plotly.graph_objects as go
-
 app = Flask(__name__)
 
 # Datenbank-Konfiguration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:Moinul439!!@localhost/pizzadatabase'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:Start123@localhost/pizzadatabase'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -114,93 +114,6 @@ def store_annual_revenues():
             'revenue_2022': row[8]
         } for row in data]
         return jsonify({'store_annual_revenues': annual_revenues})
-    except Exception as e:
-        return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
-
-@app.route('/api/store_orders_per_hour')
-def store_orders_per_hour():
-    try:
-        query = text("""
-            SELECT
-                storeid,
-                (EXTRACT(DOW FROM orderdate_date) + 6) % 7 AS order_day_of_week,
-                EXTRACT(hour FROM orderdate_time) AS order_hour,
-                SUM(total_orders) AS total_orders_per_hour
-            FROM (
-                SELECT
-                    storeid,
-                    orderdate_date,
-                    orderdate_time,
-                    COUNT(*) AS total_orders
-                FROM
-                    orders
-                GROUP BY
-                    storeid, orderdate_date, orderdate_time
-            ) aggregated_orders
-            GROUP BY
-                storeid,
-                (EXTRACT(DOW FROM orderdate_date) + 6) % 7,
-                EXTRACT(hour FROM orderdate_time)
-            ORDER BY
-                storeid, order_day_of_week, order_hour;
-        """)
-        result = db.session.execute(query)
-        data = result.fetchall()
-        orders_per_hour = [{
-            'storeid': row[0],
-            'order_day_of_week': row[1],
-            'order_hour': row[2],
-            'total_orders_per_hour': row[3]
-        } for row in data]
-        return jsonify({'store_orders_per_hour': orders_per_hour})
-    except Exception as e:
-        return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
-
-@app.route('/api/revenue_per_weekday')
-def revenue_per_weekday():
-    try:
-        query = text("""
-            SELECT
-                o.storeid,
-                (EXTRACT(DOW FROM o.orderdate_date) + 6) % 7 AS order_day_of_week,  -- Montag als erster Tag der Woche (0=Montag, 6=Sonntag)
-                SUM(o.total) AS total_revenue
-            FROM
-                orders o
-            GROUP BY
-                o.storeid,
-                (EXTRACT(DOW FROM o.orderdate_date) + 6) % 7
-            ORDER BY
-                o.storeid, order_day_of_week;
-        """)
-        result = db.session.execute(query)
-        data = result.fetchall()
-        revenue_data = [{'storeid': row[0], 'order_day_of_week': row[1], 'total_revenue': row[2]} for row in data]
-        return jsonify({'revenue_per_weekday': revenue_data})
-    except Exception as e:
-        return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
-
-@app.route('/api/pizza_orders')
-def pizza_orders():
-    try:
-        query = text("""
-            SELECT
-                p.name AS pizza_name,
-                COUNT(*) AS total_orders
-            FROM
-                orderitems oi
-            JOIN
-                products p ON oi.sku = p.sku
-            WHERE
-                p.name LIKE '%Pizza%'
-            GROUP BY
-                p.name
-            ORDER BY
-                total_orders DESC;
-        """)
-        result = db.session.execute(query)
-        data = result.fetchall()
-        pizza_data = [{'pizza_name': row[0], 'total_orders': row[1]} for row in data]
-        return jsonify({'pizza_orders': pizza_data})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
