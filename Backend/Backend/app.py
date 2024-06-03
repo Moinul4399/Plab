@@ -1,11 +1,13 @@
 from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
+import pandas as pd
 from sqlalchemy import text
 import plotly.graph_objects as go
+
 app = Flask(__name__)
 
 # Datenbank-Konfiguration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:Start123@localhost/PizzaData'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:Start123@localhost/pizzadatabase'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -44,7 +46,6 @@ def get_top_stores():
         return jsonify({'top_stores': top_stores})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
-
 
 @app.route('/api/store_locations')
 def store_locations():
@@ -116,6 +117,94 @@ def store_annual_revenues():
         return jsonify({'store_annual_revenues': annual_revenues})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
+
+@app.route('/api/metrics')
+def get_metrics():
+    try:
+        # Total customers query
+        total_customers_query = text("""
+            SELECT COUNT(*) FROM customers;
+        """)
+        total_customers_result = db.session.execute(total_customers_query).scalar()
+
+        # Total revenue query
+        total_revenue_query = text("""
+            SELECT SUM(o.total) FROM orders o;
+        """)
+        total_revenue_result = db.session.execute(total_revenue_query).scalar()
+
+        # Average revenue per store query
+        average_revenue_per_store_query = text("""
+            SELECT AVG(total_revenue) FROM (
+                SELECT SUM(o.total) AS total_revenue
+                FROM orders o
+                GROUP BY o.storeid
+            ) AS store_revenues;
+        """)
+        average_revenue_per_store_result = db.session.execute(average_revenue_per_store_query).scalar()
+
+        # Convert results to float and int
+        total_customers = int(total_customers_result)
+        total_revenue = float(total_revenue_result)
+        average_revenue_per_store = float(average_revenue_per_store_result)
+
+        return jsonify({
+            'total_customers': total_customers,
+            'total_revenue': total_revenue,
+            'average_revenue_per_store': average_revenue_per_store
+        })
+    except Exception as e:
+        return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
+    
+@app.route('/api/store_monthly_revenues')
+def store_monthly_revenues():
+    try:
+        query = text("""
+            SELECT
+                s.storeid,
+                s.city,
+                s.latitude,
+                s.longitude,
+                to_char(o.orderdate_date, 'YYYY-MM') AS month,  -- Get year and month
+                SUM(o.total) AS revenue                             -- Calculate total revenue
+            FROM
+                stores s
+            JOIN
+                orders o ON s.storeid = o.storeid
+            GROUP BY
+                s.storeid, s.city, s.latitude, s.longitude, to_char(o.orderdate_date, 'YYYY-MM')
+            ORDER BY
+                s.city, month; -- Order by city and then by month
+        """)
+
+        result = db.session.execute(query)
+        data = result.fetchall()
+
+        # Restructure data into a nested format for better frontend use
+        monthly_revenues = {}
+        for row in data:
+            store_id = row[0]
+            city = row[1]
+            latitude = row[2]
+            longitude = row[3]
+            month = row[4]
+            revenue = row[5]
+
+            if store_id not in monthly_revenues:
+                monthly_revenues[store_id] = {
+                    'storeid': store_id,
+                    'city': city,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'monthly_revenues': {}  # Initialize nested dictionary
+                }
+            monthly_revenues[store_id]['monthly_revenues'][month] = revenue
+
+        return jsonify({'store_monthly_revenues': list(monthly_revenues.values())})
+
+    except Exception as e:
+        return jsonify({'error': f"Error fetching data: {e}"})
+    
 
 if __name__ == '__main__':
     app.run(debug=True)
