@@ -1,98 +1,141 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import requests
+import numpy as np
+import plotly.graph_objects as go
 
-# Dummy-Daten für den Umsatz nach Standorten und Jahren
-dummy_data = pd.DataFrame({
-    'storeID': [101, 102, 103, 104, 105, 106, 107, 108, 109, 110],
-    '2018': [5000, 4800, 4500, 4200, 4000, 3800, 3600, 3400, 3200, 3000],
-    '2019': [5100, 4900, 4600, 4300, 4100, 3900, 3700, 3500, 3300, 3100],
-    '2020': [5200, 5000, 4700, 4400, 4200, 4000, 3800, 3600, 3400, 3200],
-    '2021': [5300, 5100, 4800, 4500, 4300, 4100, 3900, 3700, 3500, 3300],
-    '2022': [5400, 5200, 4900, 4600, 4400, 4200, 4000, 3800, 3600, 3400],
-})
+# Funktion zum Abfragen von Backend-Daten
+def fetch_data(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Löst eine Exception aus, wenn der Request fehlschlägt
+        return response.json()
+    except requests.RequestException as e:
+        st.error(f"Error fetching data from {url}: {e}")
+        return None
 
-# Dummy-Daten für Bestellungen
-np.random.seed(42)
-order_dates = pd.date_range(start='2022-01-01', end='2022-12-31', freq='D')
-order_data = pd.DataFrame({
-    'orderID': range(1, 101),
-    'customerID': np.random.randint(1, 21, size=100),
-    'orderDate': np.random.choice(order_dates, size=100)
-})
+# Funktion zum Erstellen der Location Map
+def create_location_map():
+    store_data = fetch_data("http://localhost:5000/api/store_locations")
+    customer_data = fetch_data("http://localhost:5000/api/customer_locations")
 
-# Dummy-Daten für wiederholte Bestellungen
-repeat_orders_data = pd.DataFrame({
-    'customerID': range(1, 21),
-    'repeatOrders': np.random.randint(1, 11, size=20)
-})
+    if store_data and customer_data:
+        store_df = pd.DataFrame(store_data['store_locations'])
+        customer_df = pd.DataFrame(customer_data['customer_locations'])
 
-# Funktion zum Erstellen des Histogramms für wiederholte Bestellungen
-def create_repeat_orders_histogram(repeat_orders_data):
-    fig = px.histogram(repeat_orders_data, x='repeatOrders', title='Distribution of Repeat Orders per Customer',
-                       labels={'repeatOrders': 'Number of Repeat Orders', 'count': 'Number of Customers'})
-    fig.update_traces(marker_color='skyblue', marker_line_color='black', marker_line_width=1)
-    fig.update_layout(xaxis_title='Number of Repeat Orders', yaxis_title='Number of Customers')
-    return fig
+        store_df['Type'] = 'Store'
+        customer_df['Type'] = 'Customer'
+        data = pd.concat([store_df, customer_df], ignore_index=True)
 
-# Funktion für das Haupt-Dashboard
+        fig = go.Figure()
+        for type, details in zip(["Store", "Customer"], [{"color": "red", "size": 15}, {"color": "green", "size": 6}]):
+            df = data[data["Type"] == type]
+            fig.add_trace(go.Scattergeo(
+                lon=df['longitude'],
+                lat=df['latitude'],
+                text=df['city'] + ' (' + df['Type'] + ')' if 'city' in df.columns else df['Type'], 
+                marker=dict(
+                    size=details["size"],
+                    color=details["color"],
+                    line=dict(width=1, color='rgba(0,0,0,0)')
+                ),
+                hovertemplate='%{text}<extra></extra>',
+                name=type
+            ))
+
+        fig.update_layout(
+            showlegend=True,
+            legend=dict(
+                x=1.05,
+                y=0.5,
+                font=dict(
+                    size=14,
+                ),
+                bgcolor="rgba(0, 0, 0, 0)",
+                bordercolor="Black",
+                borderwidth=0
+            ),
+            geo=dict(
+                projection_type='albers usa',  # Fokus auf die USA
+                showland=True,
+                landcolor="rgb(217, 217, 217)",
+                subunitcolor="rgb(255, 255, 255)",
+                subunitwidth=0.5,
+            ),
+            margin={"r":0,"t":0,"l":0,"b":0}
+        )
+        return fig
+    else:
+        return go.Figure()
+
+# Funktion zum Erstellen der Umsatz-Heatmap
+def create_sales_heatmap(selected_year):
+    revenue_data = fetch_data(f"http://localhost:5000/api/store_annual_revenues")
+    if revenue_data:
+        data = pd.DataFrame(revenue_data['store_annual_revenues'])
+        data_year = data[['latitude', 'longitude', 'city', f'revenue_{selected_year}']].copy()
+        data_year['Revenue'] = pd.to_numeric(data_year[f'revenue_{selected_year}'])
+
+        fig = px.scatter_geo(data_year, lat='latitude', lon='longitude', hover_name='city',
+                             size='Revenue', color='city',
+                             size_max=30, projection='albers usa')  # Fokus auf die USA
+
+        fig.update_traces(hovertemplate='%{hovertext}<br>Revenue: %{marker.size:$,.0f}')
+        fig.update_layout(
+            margin={"r":0,"t":0,"l":0,"b":0},
+            geo=dict(
+                scope='north america',  # Beschränkt die Karte auf Nordamerika
+                showland=True,
+                landcolor='rgb(243, 243, 243)',
+                countrycolor='rgb(204, 204, 204)',
+            )
+        )
+        return fig
+    else:
+        return px.scatter_geo()
+
+# Dummydaten
+def generate_dummy_order_data():
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    years = [2018, 2019, 2020, 2021, 2022]
+    data = []
+
+    for year in years:
+        for day in days:
+            avg_orders = np.random.randint(50, 150)  # Zufällige Durchschnittswerte für Bestellungen
+            data.append({'Year': year, 'Day': day, 'AvgOrders': avg_orders})
+
+    return pd.DataFrame(data)
+
+# Hauptfunktion für das Dashboard
 def main():
-    # Streamlit-Seitenkonfiguration
-    st.set_page_config(
-        page_title="Pizzeria Dashboard",
-        page_icon="🍕",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+    st.set_page_config(page_title="Pizzeria Dashboard", page_icon="🍕", layout="wide")
 
-    # Seitenleiste
-    st.sidebar.image("images/CaptainPizza.png", width=170, use_column_width=False)
-    st.sidebar.markdown("<h1 style='text-align: center; color: white; margin-left: -30px;'>🍕 Pizzeria Dashboard</h1>", unsafe_allow_html=True)
+    # Dummy-Daten laden
+    order_data = generate_dummy_order_data()
 
-    # Filtermöglichkeiten
-    view_option = st.sidebar.radio("Select your view:", ("Overview", "Regionview", "Storeview"))
+    # Kacheln mit Metriken hinzufügen
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Stores", "32")
+    col2.metric("Pizza Categories", "36")
+    col3.metric("Total Revenue 2022", "$18494714.60")
 
-    if view_option == "Overview":
-        st.subheader("Overview")
+    # Location Map
+    st.header("Location Map for Customers and Stores")
+    fig_location_map = create_location_map()
+    st.plotly_chart(fig_location_map, use_container_width=True)
 
-        # Filteroptionen für Top 10 Standorte
-        filter_option = st.selectbox("Revenue of the stores:", ("Top 10 best", "Top 10 badest"))
+    # Store Revenue Map mit Filter
+    st.header("Store Revenue Map")
+    selected_year = st.selectbox('Select Year', ['2018', '2019', '2020', '2021', '2022'], key='year_filter')
+    fig_sales_heatmap = create_sales_heatmap(selected_year)
+    st.plotly_chart(fig_sales_heatmap, use_container_width=True)
 
-        if filter_option == "Top 10 best":
-            top_10_best = dummy_data.nlargest(10, ['2018', '2019', '2020', '2021', '2022']).set_index('storeID')
-            fig = px.bar(top_10_best.T, title='Top 10 best stores by revenue', labels={'index': 'Year', 'value': 'Revenue'}, width=800, height=500)
-            st.plotly_chart(fig)
-        else:
-            top_10_worst = dummy_data.nsmallest(10, ['2018', '2019', '2020', '2021', '2022']).set_index('storeID')
-            fig = px.bar(top_10_worst.T, title='Top 10 worst stores by revenue', labels={'index': 'Year', 'value': 'Revenue'}, width=800, height=500)
-            st.plotly_chart(fig)
-
-        # Benutzerdefinierte Auswahl der Geschäfte
-        st.subheader("Select Store:")
-        store_ids = st.multiselect("Store ID", dummy_data['storeID'])
-
-        if store_ids:
-            for store_id in store_ids:
-                show_monthly_sales(store_id)
-
-    # Visualisierung für Kundenloyalität und Wiederholungsbestellungen
-    st.subheader("Customer Loyalty and Repeat Orders")
-    st.write("This visualization shows the distribution of repeat orders per customer.")
-
-    # Histogramm für wiederholte Bestellungen anzeigen
-    st.subheader("Histogram of Repeat Orders per Customer")
-    fig = create_repeat_orders_histogram(repeat_orders_data)
-    st.plotly_chart(fig)
-
-# Funktion zum Anzeigen der monatlichen Umsätze
-def show_monthly_sales(store_id):
-    st.subheader(f"Monthly Sales for Store {store_id}")
-    monthly_sales_data = pd.DataFrame({
-        'Month': range(1, 13),
-        'Sales': np.random.randint(1000, 5000, size=12)  # Dummy-Daten für monatlichen Umsatz
-    })
-    fig = px.bar(monthly_sales_data, x='Month', y='Sales', title=f'Monthly Sales for Store {store_id}', labels={'Month': 'Month', 'Sales': 'Sales'})
-    st.plotly_chart(fig)
+    # Liniendiagramm für durchschnittliche Bestellungen
+    st.header("Average Orders from Monday to Sunday (2018-2022)")
+    fig_line = px.line(order_data, x='Day', y='AvgOrders', color='Year', symbol="Year")
+    st.plotly_chart(fig_line, use_container_width=True)
 
 if __name__ == "__main__":
     main()
