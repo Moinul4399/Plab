@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 app = Flask(__name__)
 
 # Datenbank-Konfiguration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:Start123@localhost/pizzadatabase'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/pizzadatabase'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -118,92 +118,157 @@ def store_annual_revenues():
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
-@app.route('/api/store_orders_per_hour')
-def store_orders_per_hour():
+
+# Scatterplot
+@app.route('/api/scatterplot')
+def get_store_data():
+    # Abfrage für Umsatzdaten
+    revenue_query = text("""
+        SELECT 
+            stores.storeid,
+            EXTRACT(YEAR FROM orders.orderdate_date) AS year,
+            SUM(orders.nitems * products.price) AS revenue
+        FROM 
+            stores
+        JOIN 
+            orders ON stores.storeid = orders.storeid
+        JOIN 
+            orderitems ON orders.orderid = orderitems.orderid
+        JOIN 
+            products ON orderitems.sku = products.sku
+        GROUP BY 
+            stores.storeid, EXTRACT(YEAR FROM orders.orderdate_date)
+        ORDER BY 
+            stores.storeid, year;
+    """)
+
+    # Abfrage für Bestellanzahl
+    order_count_query = text("""
+        SELECT
+            stores.storeid,
+            EXTRACT(YEAR FROM orders.orderdate_date) AS year,
+            COUNT(DISTINCT orders.orderid) AS order_count  
+        FROM
+            stores
+        JOIN
+            orders ON stores.storeid = orders.storeid
+        GROUP BY
+            stores.storeid, EXTRACT(YEAR FROM orders.orderdate_date)
+        ORDER BY
+            stores.storeid, year;
+    """)
+
+    # Ergebnisse abrufen
+    revenue_result = db.session.execute(revenue_query)
+    order_count_result = db.session.execute(order_count_query)
+
+    # Daten in Dictionaries umwandeln
+    revenue_data = {
+        (row.storeid, row.year): row.revenue for row in revenue_result
+    }  # Key: (storeid, year)
+    order_data = {
+        (row.storeid, row.year): row.order_count for row in order_count_result
+    }
+    combined_data = []
+    for (storeid, year), revenue in revenue_data.items():
+        order_count = order_data.get((storeid, year), 0)
+        combined_data.append({
+            "storeid": storeid,
+            "year": year,
+            "revenue": revenue,
+            "order_count": order_count
+        })
+
+    return jsonify(combined_data)
+
+
+@app.route('/api/metrics')
+def get_metrics():
     try:
-        query = text("""
-            SELECT
-                storeid,
-                (EXTRACT(DOW FROM orderdate_date) + 6) % 7 AS order_day_of_week,
-                EXTRACT(hour FROM orderdate_time) AS order_hour,
-                SUM(total_orders) AS total_orders_per_hour
-            FROM (
-                SELECT
-                    storeid,
-                    orderdate_date,
-                    orderdate_time,
-                    COUNT(*) AS total_orders
-                FROM
-                    orders
-                GROUP BY
-                    storeid, orderdate_date, orderdate_time
-            ) aggregated_orders
-            GROUP BY
-                storeid,
-                (EXTRACT(DOW FROM orderdate_date) + 6) % 7,
-                EXTRACT(hour FROM orderdate_time)
-            ORDER BY
-                storeid, order_day_of_week, order_hour;
+        # Total customers query
+        total_customers_query = text("""
+            SELECT COUNT(*) FROM customers;
         """)
-        result = db.session.execute(query)
-        data = result.fetchall()
-        orders_per_hour = [{
-            'storeid': row[0],
-            'order_day_of_week': row[1],
-            'order_hour': row[2],
-            'total_orders_per_hour': row[3]
-        } for row in data]
-        return jsonify({'store_orders_per_hour': orders_per_hour})
+        total_customers_result = db.session.execute(total_customers_query).scalar()
+
+        # Total revenue query
+        total_revenue_query = text("""
+            SELECT SUM(o.total) FROM orders o;
+        """)
+        total_revenue_result = db.session.execute(total_revenue_query).scalar()
+
+        # Average revenue per store query
+        average_revenue_per_store_query = text("""
+            SELECT AVG(total_revenue) FROM (
+                SELECT SUM(o.total) AS total_revenue
+                FROM orders o
+                GROUP BY o.storeid
+            ) AS store_revenues;
+        """)
+        average_revenue_per_store_result = db.session.execute(average_revenue_per_store_query).scalar()
+
+        # Convert results to float and int
+        total_customers = int(total_customers_result)
+        total_revenue = float(total_revenue_result)
+        average_revenue_per_store = float(average_revenue_per_store_result)
+
+        return jsonify({
+            'total_customers': total_customers,
+            'total_revenue': total_revenue,
+            'average_revenue_per_store': average_revenue_per_store
+        })
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
-
-@app.route('/api/revenue_per_weekday')
-def revenue_per_weekday():
+    
+@app.route('/api/store_monthly_revenues')
+def store_monthly_revenues():
     try:
         query = text("""
             SELECT
-                o.storeid,
-                (EXTRACT(DOW FROM o.orderdate_date) + 6) % 7 AS order_day_of_week,  -- Montag als erster Tag der Woche (0=Montag, 6=Sonntag)
-                SUM(o.total) AS total_revenue
+                s.storeid,
+                s.city,
+                s.latitude,
+                s.longitude,
+                to_char(o.orderdate_date, 'YYYY-MM') AS month,  -- Get year and month
+                SUM(o.total) AS revenue                             -- Calculate total revenue
             FROM
-                orders o
-            GROUP BY
-                o.storeid,
-                (EXTRACT(DOW FROM o.orderdate_date) + 6) % 7
-            ORDER BY
-                o.storeid, order_day_of_week;
-        """)
-        result = db.session.execute(query)
-        data = result.fetchall()
-        revenue_data = [{'storeid': row[0], 'order_day_of_week': row[1], 'total_revenue': row[2]} for row in data]
-        return jsonify({'revenue_per_weekday': revenue_data})
-    except Exception as e:
-        return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
-
-@app.route('/api/pizza_orders')
-def pizza_orders():
-    try:
-        query = text("""
-            SELECT
-                p.name AS pizza_name,
-                COUNT(*) AS total_orders
-            FROM
-                orderitems oi
+                stores s
             JOIN
-                products p ON oi.sku = p.sku
-            WHERE
-                p.name LIKE '%Pizza%'
+                orders o ON s.storeid = o.storeid
             GROUP BY
-                p.name
+                s.storeid, s.city, s.latitude, s.longitude, to_char(o.orderdate_date, 'YYYY-MM')
             ORDER BY
-                total_orders DESC;
+                s.city, month; -- Order by city and then by month
         """)
+
         result = db.session.execute(query)
         data = result.fetchall()
-        pizza_data = [{'pizza_name': row[0], 'total_orders': row[1]} for row in data]
-        return jsonify({'pizza_orders': pizza_data})
+
+        # Restructure data into a nested format for better frontend use
+        monthly_revenues = {}
+        for row in data:
+            store_id = row[0]
+            city = row[1]
+            latitude = row[2]
+            longitude = row[3]
+            month = row[4]
+            revenue = row[5]
+
+            if store_id not in monthly_revenues:
+                monthly_revenues[store_id] = {
+                    'storeid': store_id,
+                    'city': city,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'monthly_revenues': {}  # Initialize nested dictionary
+                }
+            monthly_revenues[store_id]['monthly_revenues'][month] = revenue
+
+        return jsonify({'store_monthly_revenues': list(monthly_revenues.values())})
+
     except Exception as e:
-        return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
+        return jsonify({'error': f"Error fetching data: {e}"})
+    
 
 if __name__ == '__main__':
     app.run(debug=True)
