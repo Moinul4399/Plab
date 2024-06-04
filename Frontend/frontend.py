@@ -29,7 +29,7 @@ def create_location_map():
         data = pd.concat([store_df, customer_df], ignore_index=True)
 
         fig = go.Figure()
-        for type, details in zip(["Store", "Customer"], [{"color": "red", "size": 15}, {"color": "green", "size": 6}]):
+        for type, details in zip(["Store", "Customer"], [{"color": "blue", "size": 15}, {"color": "green", "size": 6}]):
             df = data[data["Type"] == type]
             fig.add_trace(go.Scattergeo(
                 lon=df['longitude'],
@@ -68,6 +68,51 @@ def create_location_map():
         return fig
     else:
         return go.Figure()
+    
+    
+    # Funktion zum Erstellen der Scatter Plots
+def create_scatter_plots():
+    scatter_data = fetch_data("http://localhost:5000/api/scatterplot")
+    if scatter_data:
+        df = pd.DataFrame(scatter_data)
+        
+        df.rename(columns={"storeid": "Store ID", "year": "Year", "order_count": "Orders", "revenue": "Revenue"}, inplace=True)
+
+        # Konvertiere Orders und Revenue in numerische Werte
+        df['Orders'] = pd.to_numeric(df['Orders']).apply(lambda x: round(x))  # Auf ganze Zahlen runden
+        df['Revenue'] = pd.to_numeric(df['Revenue']).round(1)  # Auf eine Dezimalstelle runden
+
+        # Scatter Plot mit Faceting erstellen
+        fig = px.scatter(
+            df,
+            x='Orders',
+            y='Revenue',
+            color='Store ID',
+            facet_col='Year',
+            labels={'Orders': 'Total Orders', 'Revenue': 'Revenue'}
+        )
+
+        fig.update_traces(
+            hovertemplate='<br><b>Store ID:</b> %{customdata[0]}<br>'
+                          '<b>Total Orders:</b> %{x:.0f}<br>'
+                          '<b>Revenue:</b> %{y:.1f}k<extra></extra>',
+            customdata=df[['Store ID']]
+        )
+
+        fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))  # Entfernt "Year =" aus den Facettentiteln
+
+        fig.update_layout(
+            margin={"r":0,"t":30,"l":0,"b":0},
+            xaxis_tickformat=',d',  # Entfernt Dezimalstellen von der x-Achse
+            yaxis_tickformat=',.1f'  # Eine Dezimalstelle auf der y-Achse
+        )
+
+        return fig
+    else:
+        return None
+
+
+    
 #monthly bar chart
 # Funktion zum Erstellen des Säulendiagramms der monatlichen Revenues
 def show_monthly_sales(store_id, year):
@@ -210,7 +255,7 @@ def overview_dashboard():
     col3.metric("Durchschnittsumsatz pro Store", f"${average_revenue_per_store / 1e6:,.2f} Mio")
 
     # Tabs für verschiedene Diagramme und Karten
-    tab1, tab2, tab3 = st.tabs (["Location Map", "Store Revenue Map", "Average Orders"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Location Map", "Store Revenue Map", "Average Orders", "Scatter Plots"])
 
     with tab1:
         "Location Map"
@@ -224,7 +269,7 @@ use_container_width=True)
         "Store Revenue Map"
         # Store Revenue Map anzeigen
         tab2.header("Store Revenue Map")
-        selected_year = tab2.selectbox('Select Year', ['2018', '2019', '2020', '2021', '2022'], key='year_filter')
+        selected_year = tab2.selectbox('Select Year', ['2020', '2021', '2022'], key='year_filter')
         fig_sales_heatmap = create_sales_heatmap(selected_year)
         tab2.plotly_chart(fig_sales_heatmap, use_container_width=True)
 
@@ -235,13 +280,24 @@ use_container_width=True)
         order_data = generate_dummy_order_data()
         fig_line = px.line(order_data, x='Day', y='AvgOrders', color='Year', symbol="Year")
         tab3.plotly_chart(fig_line, use_container_width=True)
+        
+        
+    with tab4:
+        "Scatter Plots"
+        # Scatter Plots anzeigen
+        tab4.header("Scatter Plots of Orders vs Revenue")
+        fig_scatter = create_scatter_plots()
+        if fig_scatter:
+            tab4.plotly_chart(fig_scatter, use_container_width=True)
+        else:
+            st.error("Fehler beim Abrufen der Scatter Plot Daten")
 
 # Hauptfunktion für das Dashboard
 def main():
     st.set_page_config(page_title="Pizzeria Dashboard", page_icon="🍕", layout="wide")
 
     # Sidebar mit Bild und Navigation
-    st.sidebar.image("Frontend/images/CaptainPizza.png", use_column_width=True)  # Pfad zu Ihrem Logo
+    st.sidebar.image("images/CaptainPizza.png", use_column_width=True)  # Pfad zu Ihrem Logo
     page = st.sidebar.selectbox("Navigation", ["Overview", "Storeview"])
 
     if page == "Overview":
@@ -285,7 +341,6 @@ def show_monthly_sales(store_id, year):
         st.error("Fehler beim Abrufen der monatlichen Umsätze")
 
 ## Histogramm mit Dummy-Data
-
 # Beispielhafte Daten
 data = [
     {'storeid': 'Store1', 'customerid': 'Cust1', 'order_count': 3, 'year': 2020},
@@ -304,7 +359,7 @@ data = [
 
 df = pd.DataFrame(data)
 
-# Gruppierungen für Balkendiagramm in Histogramm
+# Gruppierungen fpr Balkendiagramm in Histogramm
 def create_grouped_bar_chart(df, store1, store2):
     if store2 == "None":
         df_filtered = df[df['storeid'] == store1]
@@ -323,12 +378,7 @@ def create_grouped_bar_chart(df, store1, store2):
             x=df_store['year'],
             y=df_store['order_count'],
             name=store,
-            hovertemplate='Year: %{x}<br>Orders: %{y}',
-            customdata=df_store['storeid'],  # Custom data to identify the clicked bar
-            marker=dict(
-                color='rgba(0, 0, 0, 0)',  # Transparent color for initial state
-                line=dict(color='rgba(0, 0, 0, 0)')  # Transparent line for initial state
-            ),
+            hovertemplate='Year: %{x}<br>Orders: %{y}'
         ))
 
     fig.update_layout(
@@ -340,6 +390,7 @@ def create_grouped_bar_chart(df, store1, store2):
     )
 
     return fig
+
 
 # Function to handle bar click event
 def handle_bar_click(trace, points, selector):
@@ -371,5 +422,21 @@ def storeview_dashboard():
 
         # Show the chart
         st.plotly_chart(fig)
+        
+        
+    # Histogramm anzeigen in store view
+    st.title('Histogramm')
+
+    store_options = df['storeid'].unique().tolist()
+    store_options.append("None")
+    
+    store1 = st.selectbox('Select the first store', store_options)
+    store2 = st.selectbox('Select the second store (optional)', store_options, index=store_options.index("None"))
+
+    if store1 and store1 != "None":
+        fig = create_grouped_bar_chart(df, store1, store2)
+        st.plotly_chart(fig)
+        
+        
 if __name__ == "__main__":
     main()
