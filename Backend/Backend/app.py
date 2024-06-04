@@ -120,63 +120,38 @@ def store_annual_revenues():
 
 
 # Scatterplot
-@app.route('/api/scatterplot')
+@app.route('/api/scatter_plot')
 def get_store_data():
-    # Abfrage für Umsatzdaten
-    revenue_query = text("""
+    query = text("""
         SELECT 
             stores.storeid,
+            stores.city,
             EXTRACT(YEAR FROM orders.orderdate_date) AS year,
-            SUM(orders.nitems * products.price) AS revenue
+            SUM(orders.nitems * products.price) AS revenue,
+            COUNT(DISTINCT orders.orderid) AS order_count
         FROM 
             stores
-        JOIN 
-            orders ON stores.storeid = orders.storeid
-        JOIN 
-            orderitems ON orders.orderid = orderitems.orderid
-        JOIN 
-            products ON orderitems.sku = products.sku
+        LEFT JOIN orders ON stores.storeid = orders.storeid
+        LEFT JOIN orderitems ON orders.orderid = orderitems.orderid
+        LEFT JOIN products ON orderitems.sku = products.sku
         GROUP BY 
-            stores.storeid, EXTRACT(YEAR FROM orders.orderdate_date)
+            stores.storeid, stores.city, EXTRACT(YEAR FROM orders.orderdate_date)
         ORDER BY 
             stores.storeid, year;
     """)
 
-    # Abfrage für Bestellanzahl
-    order_count_query = text("""
-        SELECT
-            stores.storeid,
-            EXTRACT(YEAR FROM orders.orderdate_date) AS year,
-            COUNT(DISTINCT orders.orderid) AS order_count  
-        FROM
-            stores
-        JOIN
-            orders ON stores.storeid = orders.storeid
-        GROUP BY
-            stores.storeid, EXTRACT(YEAR FROM orders.orderdate_date)
-        ORDER BY
-            stores.storeid, year;
-    """)
+    # Execute the Query and Fetch Results
+    result = db.session.execute(query)
 
-    # Ergebnisse abrufen
-    revenue_result = db.session.execute(revenue_query)
-    order_count_result = db.session.execute(order_count_query)
-
-    # Daten in Dictionaries umwandeln
-    revenue_data = {
-        (row.storeid, row.year): row.revenue for row in revenue_result
-    }  # Key: (storeid, year)
-    order_data = {
-        (row.storeid, row.year): row.order_count for row in order_count_result
-    }
+    # Process and Organize Results
     combined_data = []
-    for (storeid, year), revenue in revenue_data.items():
-        order_count = order_data.get((storeid, year), 0)
+    for row in result:
         combined_data.append({
-            "storeid": storeid,
-            "year": year,
-            "revenue": revenue,
-            "order_count": order_count
+            "storeid": row.storeid,
+            "city": row.city,  # Added city field
+            "year": row.year,
+            "revenue": row.revenue or 0,  # Handle potential NULL revenue
+            "order_count": row.order_count
         })
 
     return jsonify(combined_data)
@@ -268,7 +243,43 @@ def store_monthly_revenues():
 
     except Exception as e:
         return jsonify({'error': f"Error fetching data: {e}"})
-    
+
+@app.route('/api/store_yearly_avg_orders')
+def store_yearly_avg_orders():
+    try:
+        # SQL query remains the same
+        query = text("""
+            SELECT
+                s.storeid,
+                s.city, 
+                EXTRACT(YEAR FROM o.orderdate_date) AS order_year,
+                ROUND(COUNT(DISTINCT o.orderid)::numeric / COUNT(DISTINCT o.customerid)::numeric, 2) AS avg_orders_per_customer
+            FROM Stores s
+            JOIN Orders o ON s.storeid = o.storeid
+            GROUP BY s.storeid, s.city, EXTRACT(YEAR FROM o.orderdate_date);
+        """)
+
+        result = db.session.execute(query)
+
+        store_data = []
+        for row in result:
+            store_id = row[0]
+            city = row[1]
+            year = int(row[2])
+            avg_orders = float(row[3])
+
+            store_data.append({
+                'storeid': store_id,
+                'city': city,
+                'year': year,
+                'avg_orders_per_customer': avg_orders
+            })
+
+        return jsonify(store_data)
+
+    except Exception as e:
+        app.logger.error(f"Error fetching data: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
