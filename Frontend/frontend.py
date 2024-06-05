@@ -44,6 +44,10 @@ def create_location_map():
                 name=type
             ))
 
+        # Set focus on a specific point (latitude and longitude)
+        focus_lat = 37.7749  # Beispielkoordinate (San Francisco)
+        focus_lon = -122.4194  # Beispielkoordinate (San Francisco)
+
         fig.update_layout(
             showlegend=True,
             legend=dict(
@@ -58,10 +62,12 @@ def create_location_map():
             ),
             geo=dict(
                 projection_type='albers usa',  # Fokus auf die USA
+                center=dict(lat=focus_lat, lon=focus_lon),  # Fokus auf eine bestimmte Stelle
                 showland=True,
                 landcolor="rgb(217, 217, 217)",
                 subunitcolor="rgb(255, 255, 255)",
                 subunitwidth=0.5,
+                fitbounds="locations",  # optional: Zoom anpassen, um alle Punkte einzuschließen
             ),
             margin={"r":0,"t":0,"l":0,"b":0}
         )
@@ -113,7 +119,7 @@ def create_scatter_plots():
 
 
     
-#monthly bar chart
+# monthly bar chart
 # Funktion zum Erstellen des Säulendiagramms der monatlichen Revenues
 def show_monthly_sales(store_id, year):
     endpoint = f"http://localhost:5000/api/store_monthly_revenues"
@@ -144,59 +150,46 @@ def show_monthly_sales(store_id, year):
     else:
         st.error("Fehler beim Abrufen der monatlichen Umsätze")
     
-
-
-## Histogramm mit Dummy-Data
-
-# Beispielhafte Daten
-data = [
-    {'storeid': 'Store1', 'customerid': 'Cust1', 'order_count': 3, 'year': 2020},
-    {'storeid': 'Store1', 'customerid': 'Cust2', 'order_count': 2, 'year': 2020},
-    {'storeid': 'Store1', 'customerid': 'Cust3', 'order_count': 4, 'year': 2021},
-    {'storeid': 'Store1', 'customerid': 'Cust4', 'order_count': 1, 'year': 2021},
-    {'storeid': 'Store1', 'customerid': 'Cust9', 'order_count': 5, 'year': 2022},
-    {'storeid': 'Store1', 'customerid': 'Cust10', 'order_count': 2, 'year': 2022},
-    {'storeid': 'Store2', 'customerid': 'Cust5', 'order_count': 5, 'year': 2020},
-    {'storeid': 'Store2', 'customerid': 'Cust6', 'order_count': 3, 'year': 2020},
-    {'storeid': 'Store2', 'customerid': 'Cust7', 'order_count': 2, 'year': 2021},
-    {'storeid': 'Store2', 'customerid': 'Cust8', 'order_count': 4, 'year': 2021},
-    {'storeid': 'Store2', 'customerid': 'Cust11', 'order_count': 3, 'year': 2022},
-    {'storeid': 'Store2', 'customerid': 'Cust12', 'order_count': 1, 'year': 2022},
-]
-
-df = pd.DataFrame(data)
-
-# Gruppierungen fpr Balkendiagramm in Histogramm
-def create_grouped_bar_chart(df, store1, store2):
-    if store2 == "None":
-        df_filtered = df[df['storeid'] == store1]
-    else:
-        df_filtered = df[(df['storeid'] == store1) | (df['storeid'] == store2)]
+# Funktion zum Erstellen des Histogramms für Kundenbestellungsvergleiche
+def create_grouped_bar_chart(store1, store2):
+    endpoint = f"http://localhost:5000/api/store_yearly_avg_orders"
+    data = fetch_data(endpoint)
+    
+    if data:
+        if store2 == "None":
+            df_filtered = [item for item in data if item['storeid'] == store1]
+        else:
+            df_filtered = [item for item in data if item['storeid'] in [store1, store2]]
         
-    df_grouped = df_filtered.groupby(['year', 'storeid'])['order_count'].sum().reset_index()
+        df_grouped = pd.DataFrame(df_filtered)
+        df_grouped = df_grouped.groupby(['year', 'storeid'])['avg_orders_per_customer'].sum().reset_index()
 
-    fig = go.Figure()
+        fig = go.Figure()
 
-    for store in [store1, store2]:
-        if store == "None":
-            continue
-        df_store = df_grouped[df_grouped['storeid'] == store]
-        fig.add_trace(go.Bar(
-            x=df_store['year'],
-            y=df_store['order_count'],
-            name=store,
-            hovertemplate='Year: %{x}<br>Orders: %{y}'
-        ))
+        for store in [store1, store2]:
+            if store == "None":
+                continue
+            df_store = df_grouped[df_grouped['storeid'] == store]
+            fig.add_trace(go.Bar(
+                x=df_store['year'],
+                y=df_store['avg_orders_per_customer'],
+                name=store,
+                hovertemplate='Year: %{x}<br>Orders: %{y}'
+            ))
 
-    fig.update_layout(
-        barmode='group',
-        title='Customer Reorder Comparison',
-        xaxis_title='Year',
-        yaxis_title='Repeat Purchases',
-        xaxis=dict(type='category')
-    )
+        fig.update_layout(
+            barmode='group',
+            title='Customer Reorder Comparison',
+            xaxis_title='Year',
+            yaxis_title='Repeat Purchases',
+            xaxis=dict(type='category')
+        )
 
-    return fig
+        st.plotly_chart(fig)
+    else:
+        st.error("Fehler beim Abrufen der Daten für das Histogramm")
+
+
 
 # Funktion zum Erstellen der Umsatz-Heatmap
 def create_sales_heatmap(selected_year):
@@ -206,18 +199,28 @@ def create_sales_heatmap(selected_year):
         data_year = data[['latitude', 'longitude', 'city', f'revenue_{selected_year}']].copy()
         data_year['Revenue'] = pd.to_numeric(data_year[f'revenue_{selected_year}'])
 
+        # Sortiere die Daten nach Umsatz in absteigender Reihenfolge
+        data_year = data_year.sort_values(by='Revenue', ascending=False)
+
         fig = px.scatter_geo(data_year, lat='latitude', lon='longitude', hover_name='city',
                              size='Revenue', color='city',
                              size_max=30, projection='albers usa')  # Fokus auf die USA
 
         fig.update_traces(hovertemplate='%{hovertext}<br>Revenue: %{marker.size:$,.0f}')
+
+        # Set focus on a specific point (latitude and longitude)
+        focus_lat = 37.7749  # Beispielkoordinate (San Francisco)
+        focus_lon = -122.4194  # Beispielkoordinate (San Francisco)
+
         fig.update_layout(
             margin={"r":0,"t":0,"l":0,"b":0},
             geo=dict(
                 scope='north america',  # Beschränkt die Karte auf Nordamerika
+                center=dict(lat=focus_lat, lon=focus_lon),  # Fokus auf eine bestimmte Stelle
                 showland=True,
                 landcolor='rgb(243, 243, 243)',
                 countrycolor='rgb(204, 204, 204)',
+                fitbounds="locations",  # optional: Zoom anpassen, um alle Punkte einzuschließen
             )
         )
         return fig
@@ -340,63 +343,6 @@ def show_monthly_sales(store_id, year):
     else:
         st.error("Fehler beim Abrufen der monatlichen Umsätze")
 
-## Histogramm mit Dummy-Data
-# Beispielhafte Daten
-data = [
-    {'storeid': 'Store1', 'customerid': 'Cust1', 'order_count': 3, 'year': 2020},
-    {'storeid': 'Store1', 'customerid': 'Cust2', 'order_count': 2, 'year': 2020},
-    {'storeid': 'Store1', 'customerid': 'Cust3', 'order_count': 4, 'year': 2021},
-    {'storeid': 'Store1', 'customerid': 'Cust4', 'order_count': 1, 'year': 2021},
-    {'storeid': 'Store1', 'customerid': 'Cust9', 'order_count': 5, 'year': 2022},
-    {'storeid': 'Store1', 'customerid': 'Cust10', 'order_count': 2, 'year': 2022},
-    {'storeid': 'Store2', 'customerid': 'Cust5', 'order_count': 5, 'year': 2020},
-    {'storeid': 'Store2', 'customerid': 'Cust6', 'order_count': 3, 'year': 2020},
-    {'storeid': 'Store2', 'customerid': 'Cust7', 'order_count': 2, 'year': 2021},
-    {'storeid': 'Store2', 'customerid': 'Cust8', 'order_count': 4, 'year': 2021},
-    {'storeid': 'Store2', 'customerid': 'Cust11', 'order_count': 3, 'year': 2022},
-    {'storeid': 'Store2', 'customerid': 'Cust12', 'order_count': 1, 'year': 2022},
-]
-
-df = pd.DataFrame(data)
-
-# Gruppierungen fpr Balkendiagramm in Histogramm
-def create_grouped_bar_chart(df, store1, store2):
-    if store2 == "None":
-        df_filtered = df[df['storeid'] == store1]
-    else:
-        df_filtered = df[(df['storeid'] == store1) | (df['storeid'] == store2)]
-        
-    df_grouped = df_filtered.groupby(['year', 'storeid'])['order_count'].sum().reset_index()
-
-    fig = go.Figure()
-
-    for store in [store1, store2]:
-        if store == "None":
-            continue
-        df_store = df_grouped[df_grouped['storeid'] == store]
-        fig.add_trace(go.Bar(
-            x=df_store['year'],
-            y=df_store['order_count'],
-            name=store,
-            hovertemplate='Year: %{x}<br>Orders: %{y}'
-        ))
-
-    fig.update_layout(
-        barmode='group',
-        title='Customer Reorder Comparison',
-        xaxis_title='Year',
-        yaxis_title='Repeat Purchases',
-        xaxis=dict(type='category')
-    )
-
-    return fig
-
-
-# Function to handle bar click event
-def handle_bar_click(trace, points, selector):
-    # Toggle the bar color on click
-    new_color = 'rgba(0, 0, 0, 0)' if trace.marker.color == 'rgba(0, 0, 0, 0)' else 'red'
-    trace.marker.color = [new_color if i in points.point_inds else c for i, c in enumerate(trace.marker.color)]
 
 # Funktion für das Storeview-Dashboard
 def storeview_dashboard():
@@ -410,33 +356,19 @@ def storeview_dashboard():
     if store_id and year:
         show_monthly_sales(store_id, year)
 
-        # Get the selected data for bar chart
-        selected_data = df[(df['storeid'] == store_id) & (df['year'] == year)]
+   
 
-        # Create the grouped bar chart
-        fig = create_grouped_bar_chart(df, 'Store1', 'Store2')
-        fig.update_traces(selector=dict(type='bar'), selected=dict(marker=dict(color='red')))  # Initial selection
+    st.header('Customer Reorder Comparison Histogram')
 
-        # Add event handler for bar click
-        fig.data[0].on_click(handle_bar_click)
+    store_options = fetch_data("http://localhost:5000/api/store_ids")['store_ids']  # Fetching store IDs
+    if store_options:
+        store_options.append("None")
 
-        # Show the chart
-        st.plotly_chart(fig)
-        
-        
-    # Histogramm anzeigen in store view
-    st.title('Histogramm')
+        store1 = st.selectbox('Select the first store', store_options)
+        store2 = st.selectbox('Select the second store (optional)', store_options, index=store_options.index("None"))
 
-    store_options = df['storeid'].unique().tolist()
-    store_options.append("None")
-    
-    store1 = st.selectbox('Select the first store', store_options)
-    store2 = st.selectbox('Select the second store (optional)', store_options, index=store_options.index("None"))
-
-    if store1 and store1 != "None":
-        fig = create_grouped_bar_chart(df, store1, store2)
-        st.plotly_chart(fig)
-        
+        if store1 and store1 != "None":
+            create_grouped_bar_chart(store1, store2)
         
 if __name__ == "__main__":
     main()
