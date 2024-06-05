@@ -370,5 +370,12 @@ def storeview_dashboard():
         if store1 and store1 != "None":
             create_grouped_bar_chart(store1, store2)
         
+
+
+
+
+
+
+
 if __name__ == "__main__":
     main()
