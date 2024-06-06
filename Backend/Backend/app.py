@@ -407,6 +407,37 @@ def pizza_orders():
         return jsonify({'pizza_orders': pizza_data})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
+        
+@app.route('/api/scatter_plot_pizzen')
+def scatterplot_data():
+    try:
+        query = text("""
+            SELECT
+                p.name AS pizza_name,
+                p.size AS pizza_size,
+                SUM(o.nitems) AS total_sold,
+                SUM(o.nitems * p.price) AS total_revenue
+            FROM products p
+            JOIN orderitems oi ON p.sku = oi.sku
+            JOIN orders o ON oi.orderid = o.orderid
+            GROUP BY p.name, p.size
+        """)
+        data= db.session.execute(query)
+        
+        # Process the Data for Frontend
+        data_for_frontend = []
+        for row in data:
+            data_for_frontend.append({
+                'pizza_name': row[0],
+                'pizza_size': row[1],
+                'total_sold': row[2],
+                'total_revenue': row[3]
+            })
 
+        return jsonify(data_for_frontend)
+
+    except Exception as e:
+        return jsonify({"error": f"Error fetching data: {str(e)}"}), 500
+        
 if __name__ == '__main__':
     app.run(debug=True)
