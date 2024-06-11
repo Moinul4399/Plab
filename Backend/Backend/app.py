@@ -439,5 +439,73 @@ def scatterplot_data():
     except Exception as e:
         return jsonify({"error": f"Error fetching data: {str(e)}"}), 500
         
+@app.route('/api/boxplot_reihe')
+def boxplot_data_reihe():
+    try:
+        # 1. Datenabfrage
+        query = text("""
+            SELECT customers.customerid, products.name AS pizza_name, COUNT(*) AS order_count
+            FROM customers
+            JOIN orders ON customers.customerid = orders.customerid
+            JOIN orderitems ON orders.orderid = orderitems.orderid
+            JOIN products ON orderitems.sku = products.sku
+            GROUP BY customers.customerid, products.name
+            ORDER BY order_count DESC;
+        """)
+        data = db.session.execute(query)
+
+        # 2. Daten in DataFrame konvertieren
+        df = pd.DataFrame(data, columns=["customerid", "pizza_name", "order_count"])
+
+        # 3. Daten für den Boxplot vorbereiten
+        boxplot_data = {}
+        for pizza in df["pizza_name"].unique():
+            boxplot_data[pizza] = df[df["pizza_name"] == pizza]["order_count"].tolist()
+
+        return jsonify(boxplot_data) 
+
+    except Exception as e:
+        return jsonify({"error": f"Error fetching data: {str(e)}"}), 500
+
+@app.route('/api/boxplot_metrics')
+def boxplot_data_metrics ():
+    try:
+        # 1. Datenabfrage
+        query = text("""
+            SELECT customers.customerid, products.name AS pizza_name, COUNT(*) AS order_count
+            FROM customers
+            JOIN orders ON customers.customerid = orders.customerid
+            JOIN orderitems ON orders.orderid = orderitems.orderid
+            JOIN products ON orderitems.sku = products.sku
+            GROUP BY customers.customerid, products.name
+            ORDER BY order_count DESC;
+        """)
+        data = db.session.execute(query)
+
+        # 2. Daten in DataFrame konvertieren
+        df = pd.DataFrame(data, columns=["customerid", "pizza_name", "order_count"])
+
+        # 3. Daten für den Boxplot vorbereiten
+        boxplot_data = {}
+        for pizza in df["pizza_name"].unique():
+            pizza_orders = df[df["pizza_name"] == pizza]["order_count"]
+            desc = pizza_orders.describe()
+            iqr = desc["75%"] - desc["25%"]
+            boxplot_data[pizza] = {
+                "min": float(desc["min"]),
+                "lower_whisker": float(max(desc["min"], desc["25%"] - 1.5 * iqr)),
+                "q1": float(desc["25%"]),
+                "median": float(desc["50%"]),
+                "q3": float(desc["75%"]),
+                "upper_whisker": float(min(desc["max"], desc["75%"] + 1.5 * iqr)),
+                "max": float(desc["max"]),
+                "iqr": float(iqr)
+            }
+
+        return jsonify(boxplot_data) 
+
+    except Exception as e:
+        return jsonify({"error": f"Error fetching data: {str(e)}"}), 500
+        
 if __name__ == '__main__':
     app.run(debug=True)
