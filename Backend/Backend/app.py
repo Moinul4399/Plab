@@ -450,6 +450,7 @@ def boxplot_data_reihe():
             JOIN orderitems ON orders.orderid = orderitems.orderid
             JOIN products ON orderitems.sku = products.sku
             GROUP BY customers.customerid, products.name
+            HAVING COUNT(*) > 1 
             ORDER BY order_count DESC;
         """)
         data = db.session.execute(query)
@@ -478,6 +479,7 @@ def boxplot_data_metrics ():
             JOIN orderitems ON orders.orderid = orderitems.orderid
             JOIN products ON orderitems.sku = products.sku
             GROUP BY customers.customerid, products.name
+            HAVING COUNT(*) > 1 
             ORDER BY order_count DESC;
         """)
         data = db.session.execute(query)
