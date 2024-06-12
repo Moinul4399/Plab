@@ -87,34 +87,36 @@ def create_location_map():
     
 # Funktion zum Erstellen des Boxplot-Diagramms
 def create_pizza_boxplot():
-    # Dummy-Daten für Wiederholungskäufe
-    repeat_orders = {
-        "Margherita Pizza": np.random.randint(1, 10, 50),
-        "Pepperoni Pizza": np.random.randint(1, 10, 50),
-        "Hawaiian Pizza": np.random.randint(1, 10, 50),
-        "Meat Lover's Pizza": np.random.randint(1, 10, 50),
-        "Veggie Pizza": np.random.randint(1, 10, 50),
-        "BBQ Chicken Pizza": np.random.randint(1, 10, 50),
-        "Buffalo Chicken Pizza": np.random.randint(1, 10, 50),
-        "Sicilian Pizza": np.random.randint(1, 10, 50),
-        "Oxtail Pizza": np.random.randint(1, 10, 50),
-    }
+    # Backend-Daten abrufen
+    url = "http://localhost:5000/api/boxplot_metrics"
+    boxplot_data = fetch_data(url)
 
-    # Erstelle das Boxplot-Diagramm
-    fig = go.Figure()
+    if boxplot_data:
+        # Erstelle das Boxplot-Diagramm
+        fig = go.Figure()
 
-    for pizza, orders in repeat_orders.items():
-        fig.add_trace(go.Box(y=orders, name=pizza))
+        for pizza, stats in boxplot_data.items():
+            fig.add_trace(go.Box(
+                y=[stats["min"], stats["lower_whisker"], stats["q1"], stats["median"], stats["q3"], stats["upper_whisker"], stats["max"]],
+                name=pizza,
+                boxpoints='all',  # Alle Datenpunkte anzeigen
+                jitter=0.5,      # Jitter für Datenpunkte
+                whiskerwidth=0.2,  # Breite der Whisker
+                marker_size=2,    # Größe der Marker
+                line_width=1      # Breite der Linien
+            ))
 
-    # Layout anpassen
-    fig.update_layout(
-        title="Repeat Orders by Pizza Type",
-        xaxis_title="Pizza Type",
-        yaxis_title="Repeat Orders",
-        showlegend=False
-    )
+        # Layout anpassen
+        fig.update_layout(
+            xaxis_title="Pizza Type",
+            yaxis_title="Repeat Orders",
+            showlegend=False
+        )
 
-    return fig
+        return fig
+    else:
+        st.error("Fehler beim Abrufen der Boxplot-Daten")
+        return go.Figure()
 
     
 ## Scatter mit Linie
