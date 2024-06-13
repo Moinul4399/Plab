@@ -15,7 +15,7 @@ db = SQLAlchemy(app)
 def get_top_stores():
     try:
         query = text("""
-            SELECT
+            SELECT 
                 s.storeID,
                 s.zipcode,
                 s.state_abbr,
@@ -320,44 +320,28 @@ def store_annual_revenues():
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
-@app.route('/api/store_orders_per_hour')
-def store_orders_per_hour():
-    try:
-        query = text("""
-            SELECT
-                storeid,
-                (EXTRACT(DOW FROM orderdate_date) + 6) % 7 AS order_day_of_week,
-                EXTRACT(hour FROM orderdate_time) AS order_hour,
-                SUM(total_orders) AS total_orders_per_hour
-            FROM (
-                SELECT
-                    storeid,
-                    orderdate_date,
-                    orderdate_time,
-                    COUNT(*) AS total_orders
-                FROM
-                    orders
-                GROUP BY
-                    storeid, orderdate_date, orderdate_time
-            ) aggregated_orders
-            GROUP BY
-                storeid,
-                (EXTRACT(DOW FROM orderdate_date) + 6) % 7,
-                EXTRACT(hour FROM orderdate_time)
-            ORDER BY
-                storeid, order_day_of_week, order_hour;
-        """)
-        result = db.session.execute(query)
-        data = result.fetchall()
-        orders_per_hour = [{
-            'storeid': row[0],
-            'order_day_of_week': row[1],
-            'order_hour': row[2],
-            'total_orders_per_hour': row[3]
-        } for row in data]
-        return jsonify({'store_orders_per_hour': orders_per_hour})
-    except Exception as e:
-        return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
+query = text("""
+    SELECT
+        storeid,
+        EXTRACT(hour FROM orderdate_time) AS order_hour,
+        SUM(total_orders) AS total_orders_per_hour
+    FROM (
+        SELECT
+            storeid,
+            orderdate_time,
+            COUNT(*) AS total_orders
+        FROM
+            orders
+        GROUP BY
+            storeid, orderdate_time
+    ) aggregated_orders
+    GROUP BY
+        storeid,
+        EXTRACT(hour FROM orderdate_time)
+    ORDER BY
+        storeid, order_hour;
+""")
+
 
 @app.route('/api/revenue_per_weekday')
 def revenue_per_weekday():
