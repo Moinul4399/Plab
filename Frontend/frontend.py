@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 import numpy as np
 import statsmodels.api as sm
 import altair as alt
-import datetime as dt
+
 
 # Funktion zum Abfragen von Backend-Daten
 def fetch_data(url):
@@ -80,8 +80,9 @@ def create_location_map():
         return fig
     else:
         return go.Figure()
+
     
-    
+
 # Funktion zum Erstellen des Boxplot-Diagramms
 def create_pizza_boxplot():
     # Backend-Daten abrufen
@@ -96,8 +97,7 @@ def create_pizza_boxplot():
             fig.add_trace(go.Box(
                 y=[stats["min"], stats["lower_whisker"], stats["q1"], stats["median"], stats["q3"], stats["upper_whisker"], stats["max"]],
                 name=pizza,
-                boxpoints='all',  # Alle Datenpunkte anzeigen
-                jitter=0.5,      # Jitter für Datenpunkte
+                boxpoints=False,  # Keine Datenpunkte anzeigen
                 whiskerwidth=0.2,  # Breite der Whisker
                 marker_size=2,    # Größe der Marker
                 line_width=1      # Breite der Linien
@@ -107,7 +107,8 @@ def create_pizza_boxplot():
         fig.update_layout(
             xaxis_title="Pizza Type",
             yaxis_title="Repeat Orders",
-            showlegend=False
+            showlegend=False,
+            yaxis=dict(range=[0, 350])  # Y-Achsenbereich erweitern
         )
 
         return fig
@@ -117,70 +118,63 @@ def create_pizza_boxplot():
 
     
 ## Scatter mit Linie
-# Funktion zum Erstellen der Scatter Plots
+# Funktion zum Erstellen der Scatter Plots mit Regressionslinien und Faceting
 def create_scatter_plots():
     scatter_data = fetch_data("http://localhost:5000/api/scatterplot")
     if scatter_data:
-
-        # Umwandeln der empfangenen Daten in einen DataFrame
         df = pd.DataFrame(scatter_data)
-
-        # Umbenennen der Spalten
+        
         df.rename(columns={"storeid": "Store ID", "year": "Year", "order_count": "Orders", "revenue": "Revenue"}, inplace=True)
 
         # Konvertiere Orders und Revenue in numerische Werte
-        df['Orders'] = pd.to_numeric(df['Orders'], errors='coerce')
-        df['Revenue'] = pd.to_numeric(df['Revenue'], errors='coerce')
+        df['Orders'] = pd.to_numeric(df['Orders']).apply(lambda x: round(x))  # Auf ganze Zahlen runden
+        df['Revenue'] = pd.to_numeric(df['Revenue']).round(1)  # Auf eine Dezimalstelle runden
 
-
-
-        # Scatter Plots für jedes Jahr erstellen
-        years = [2020, 2021, 2022]
-        fig = make_subplots(rows=1, cols=3, subplot_titles=[str(year) for year in years])
-
-        for i, year in enumerate(years, start=1):
-            df_year = df[df['Year'] == str(year)]
-            if not df_year.empty:
-                scatter = go.Scatter(
-                    x=df_year['Orders'],
-                    y=df_year['Revenue'],
-                    mode='markers',
-                    name=f'{year}',
-                    marker=dict(size=10),
-                    hovertemplate='<br><b>Store ID:</b> %{customdata[0]}<br>'
-                                  '<b>Total Orders:</b> %{x:.0f}<br>'
-                                  '<b>Revenue:</b> %{y:.1f}k<extra></extra>',
-                    customdata=df_year[['Store ID']]
-                )
-                fig.add_trace(scatter, row=1, col=i)
-                
-                
-                # Hinzufügen der Trendlinie
-                trendline = px.scatter(
-                    df_year,
-                    x='Orders',
-                    y='Revenue',
-                    trendline='ols'
-                ).data[1]
-                fig.add_trace(trendline, row=1, col=i)
-
-        fig.update_layout(
-            title_text="Scatter Plots of Orders vs Revenue with Trendline",
-            showlegend=False,
-            margin={"r":0,"t":30,"l":0,"b":0}
+        # Scatter Plot mit Faceting und Regressionslinien erstellen
+        fig = px.scatter(
+            df,
+            x='Orders',
+            y='Revenue',
+            color='Store ID',
+            facet_col='Year',
+            trendline='ols',
+            trendline_scope='overall',
+            trendline_color_override='cyan',
+            labels={'Orders': 'Total Orders', 'Revenue': 'Revenue'}
         )
 
-        for i in range(1, 4):
-            fig.update_xaxes(title_text='Total Orders', row=1, col=i)
-            fig.update_yaxes(title_text='Revenue', row=1, col=i)
+        # Extrahiere und ordne die Traces neu, um die Trendlinien zuerst hinzuzufügen
+        trendline_traces = [trace for trace in fig.data if 'trendline' in trace.name]
+        scatter_traces = [trace for trace in fig.data if 'trendline' not in trace.name]
+
+        # Leere die Figur und füge zuerst die Trendlinien, dann die Scatter-Punkte hinzu
+        fig.data = ()
+        for trace in trendline_traces + scatter_traces:
+            fig.add_trace(trace)
+
+        fig.update_traces(
+            hovertemplate='<br><b>Store ID:</b> %{customdata[0]}<br>'
+                          '<b>Total Orders:</b> %{x:.0f}<br>'
+                          '<b>Revenue:</b> %{y:.1f}k<extra></extra>',
+            customdata=df[['Store ID']]
+        )
+
+        fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))  # Entfernt "Year =" aus den Facettentiteln
+
+        fig.update_layout(
+            margin={"r":0,"t":30,"l":0,"b":0},
+            xaxis_tickformat=',d',  # Entfernt Dezimalstellen von der x-Achse
+            yaxis_tickformat=',.1f'  # Eine Dezimalstelle auf der y-Achse
+        )
 
         return fig
     else:
-        st.error("Keine Daten empfangen")
         return None
+
     
     
-    
+# monthly bar chart
+# Funktion zum Erstellen des Säulendiagramms der monatlichen Revenues
 # monthly bar chart
 # Funktion zum Erstellen des Säulendiagramms der monatlichen Revenues
 def show_monthly_sales(store_id, year):
@@ -213,6 +207,7 @@ def show_monthly_sales(store_id, year):
         st.error("Fehler beim Abrufen der monatlichen Umsätze")
 
 
+    
 # Funktion zum Erstellen des Histogramms für Kundenbestellungsvergleiche
 def create_grouped_bar_chart(store1, store2):
     endpoint = f"http://localhost:5000/api/store_yearly_avg_orders"
@@ -226,6 +221,9 @@ def create_grouped_bar_chart(store1, store2):
         
         df_grouped = pd.DataFrame(df_filtered)
         df_grouped = df_grouped.groupby(['year', 'storeid'])['avg_orders_per_customer'].sum().reset_index()
+        
+        # Konvertiere die Orders in ganze Zahlen
+        df_grouped['avg_orders_per_customer'] = df_grouped['avg_orders_per_customer'].round().astype(int)
 
         fig = go.Figure()
 
@@ -251,6 +249,7 @@ def create_grouped_bar_chart(store1, store2):
         st.plotly_chart(fig)
     else:
         st.error("Fehler beim Abrufen der Daten für das Histogramm")
+
 
 
 
@@ -333,67 +332,7 @@ def create_weekday_revenue_bar_chart(store_id):
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("Fehler beim Abrufen der wöchentlichen Umsätze")
-  
 
-# Neue Scatter Plot Linie für Pizza als Alternative
-# Dummy-Daten erstellen
-data = {
-    'name': ['Margherita Pizza', 'Pepperoni Pizza', 'Hawaiian Pizza', 'Veggie Pizza'] * 4,
-    'size': ['Small', 'Medium', 'Large', 'Extra Large'] * 4,
-    'launch': [dt.datetime(2018, 1, 1), dt.datetime(2019, 5, 10), dt.datetime(2020, 8, 15), dt.datetime(2021, 2, 20)] * 4,
-    'orders': np.random.randint(100, 1000, 16),
-    'revenue': np.random.randint(1000, 10000, 16)
-}
-
-# DataFrame erstellen
-df = pd.DataFrame(data)
-
-# Konvertiere das Release-Datum in ein Datetime-Format
-df['launch'] = pd.to_datetime(df['launch'])
-
-# Filter für das erste Jahr nach dem Release-Datum
-df['end_date'] = df['launch'] + pd.DateOffset(years=1)
-
-# Aggregiere Daten für jede Pizza im ersten Jahr nach dem Release-Datum
-df_aggregated = df.groupby(['name', 'size', 'launch', 'end_date']).agg({
-    'orders': 'sum',
-    'revenue': 'sum'
-}).reset_index()
-
-# Scatter-Plot und Regressionslinie erstellen
-def plot_pizza_performance():
-    fig = make_subplots(rows=1, cols=1, subplot_titles=["Pizza Performance in First Year After Release"])
-
-    scatter = go.Scatter(
-        x=df_aggregated['orders'],
-        y=df_aggregated['revenue'],
-        mode='markers',
-        text=df_aggregated.apply(lambda row: f"Pizza Name: {row['name']}<br>Size: {row['size']}<br>Release Date: {row['launch'].date()}<br>Orders: {row['orders']}<br>Revenue: ${row['revenue']}", axis=1),
-        hoverinfo='text'
-    )
-    fig.add_trace(scatter, row=1, col=1)
-
-    # OLS-Regression berechnen
-    X = sm.add_constant(df_aggregated['orders'])
-    y = df_aggregated['revenue']
-    model = sm.OLS(y, X).fit()
-
-    # Trendlinie hinzufügen
-    df_aggregated['predicted_revenue'] = model.predict(X)
-    trendline = go.Scatter(
-        x=df_aggregated['orders'],
-        y=df_aggregated['predicted_revenue'],
-        mode='lines',
-        name='Trendline'
-    )
-    fig.add_trace(trendline, row=1, col=1)
-
-    fig.update_layout(
-        xaxis_title='Total Orders',
-        yaxis_title='Revenue'
-    )
-
-    return fig
 
 # Pizza Sales Scatter Plot
 # Funktion zum Erstellen des Streudiagramms für Pizza-Verkäufe und Umsatz
@@ -454,6 +393,44 @@ def create_pizza_scatter_plot():
         return fig
     else:
         return None
+    
+    
+    
+# Pie Chart für Verkauf last 6 months
+# Dummy-Daten
+pizza_data = {
+    'PizzaType': ['Margherita', 'Pepperoni', 'Hawaiian', 'Veggie', 'BBQ Chicken', 'Supreme', 'Meat Lovers', 'Cheese', 'Sausage'],
+    'TotalSales': [120, 150, 80, 90, 70, 110, 60, 100, 50]
+}
+
+sizes_data = {
+    'PizzaType': ['Margherita', 'Margherita', 'Margherita', 'Margherita', 
+                 'Pepperoni', 'Pepperoni', 'Pepperoni', 'Pepperoni',
+                 'Hawaiian', 'Hawaiian', 'Hawaiian', 'Hawaiian',
+                 'Veggie', 'Veggie', 'Veggie', 'Veggie',
+                 'BBQ Chicken', 'BBQ Chicken', 'BBQ Chicken', 'BBQ Chicken',
+                 'Supreme', 'Supreme', 'Supreme', 'Supreme',
+                 'Meat Lovers', 'Meat Lovers', 'Meat Lovers', 'Meat Lovers',
+                 'Cheese', 'Cheese', 'Cheese', 'Cheese',
+                 'Sausage', 'Sausage', 'Sausage', 'Sausage'],
+    'Size': ['Small', 'Medium', 'Large', 'X-Large'] * 9,
+    'Sales': np.random.randint(20, 50, size=36)
+}
+
+df_pizza = pd.DataFrame(pizza_data)
+df_sizes = pd.DataFrame(sizes_data)
+
+# Funktion zum Erstellen des Donut-Diagramms
+def create_pizza_donut():
+    fig = px.pie(df_pizza, values='TotalSales', names='PizzaType', hole=0.3, title='Distribution of Pizza Types')
+    fig.update_traces(textinfo='label', hovertemplate='<b>%{label}</b><br>Sales: %{value}<br>Percentage: %{percent:.2%}')
+    return fig
+
+
+    
+    
+    
+
 
 # Funktion zum Erstellen des Tortendiagramms für Bestellungen pro Stunde
 def create_orders_pie_chart(store_id):
@@ -484,27 +461,129 @@ def create_orders_pie_chart(store_id):
         return go.Figure()
 
         
+        
+# Tabelle Pizza category nach Orders 
+def pizza_orders_tab():
+    st.header("Pizza Orders Table")
+    
+    # URL der Backend-API
+    API_URL = "http://localhost:5000/api/pizza_orders"  # Passen Sie die URL an Ihre Konfiguration an
+
+    # Daten von der API abrufen
+    data = fetch_data(API_URL)
+
+    if data and "pizza_orders_by_category" in data:
+        pizza_orders = data["pizza_orders_by_category"]
+        df = pd.DataFrame(pizza_orders)
+        
+        # Pivot-Tabelle erstellen
+        df_pivot = df.pivot_table(
+            index='pizza_category',
+            columns='order_year',
+            values='total_orders',
+            aggfunc='sum',
+            fill_value=0
+        ).reset_index()
+        
+        # Stellen Sie sicher, dass die Werte numerisch sind
+        df_pivot = df_pivot.apply(pd.to_numeric, errors='ignore')
+
+        # Gesamtbestellungen hinzufügen
+        df_pivot['Total Orders'] = df_pivot.iloc[:, 1:].sum(axis=1)
+        
+        # Spaltennamen anpassen
+        df_pivot.columns.name = None
+        df_pivot = df_pivot.rename(columns={'pizza_category': 'Pizza Category', 2020: '2020 Orders', 2021: '2021 Orders', 2022: '2022 Orders'})
+
+        # Index-Spalte hinzufügen und bei 1 beginnen lassen
+        df_pivot.index = df_pivot.index + 1
+        df_pivot.index.name = "Index"
+
+        # Daten in einer Tabelle anzeigen
+        if not df_pivot.empty:
+            st.dataframe(df_pivot)
+        else:
+            st.write("No data available.")
+    else:
+        st.write("Failed to fetch data from the API.")
+
+    
+    
+# Tabelle top 5 Stores 
+def top_5_stores_tab():
+    st.header("Top 5 Stores Revenue")
+    
+    # URL der Backend-API
+    API_URL = "http://localhost:5000/api/top_5_stores"  # Passen Sie die URL an Ihre Konfiguration an
+
+    # Daten von der API abrufen
+    data = fetch_data(API_URL)
+
+    if data and "top_5_stores" in data:
+        top_stores = data["top_5_stores"]
+        df = pd.DataFrame(top_stores)
+        
+        # Pivot-Tabelle erstellen
+        df_pivot = df.pivot_table(
+            index='storeid',
+            columns='year',
+            values='annual_sales',
+            aggfunc='sum',
+            fill_value=0
+        ).reset_index()
+        
+        # Stellen Sie sicher, dass die Werte numerisch sind
+        df_pivot = df_pivot.apply(pd.to_numeric, errors='ignore')
+
+        # Gesamtumsatz hinzufügen
+        df_pivot['Total Sales'] = df_pivot.iloc[:, 1:].sum(axis=1)
+        
+        # Spaltennamen anpassen
+        df_pivot.columns.name = None
+        df_pivot = df_pivot.rename(columns={'storeid': 'Store ID', 2020: '2020 Sales', 2021: '2021 Sales', 2022: '2022 Sales'})
+
+        # Index-Spalte hinzufügen und bei 1 beginnen lassen
+        df_pivot.index = df_pivot.index + 1
+        df_pivot.index.name = "Index"
+
+        # Daten in einer Tabelle anzeigen
+        if not df_pivot.empty:
+            st.dataframe(df_pivot)
+        else:
+            st.write("No data available.")
+    else:
+        st.write("Failed to fetch data from the API.")
+
+        
+        
 # Funktion für das Overview-Dashboard
 def overview_dashboard():
     # Daten für Metriken abrufen
     metrics = fetch_data("http://localhost:5000/api/metrics")
     if metrics:
-        total_customers = metrics.get('total_customers', 0)
-        total_revenue = metrics.get('total_revenue', 0.0)
-        average_revenue_per_store = metrics.get('average_revenue_per_store', 0.0)
+        new_customers_2022 = metrics.get('new_customers_2022', 0)
+        new_customers_change = metrics.get('new_customers_change', 0.0)
+        total_revenue_2022 = metrics.get('total_revenue_2022', 0.0)
+        total_revenue_change = metrics.get('total_revenue_change', 0.0)
+        avg_revenue_per_store_2022 = metrics.get('avg_revenue_per_store_2022', 0.0)
+        avg_revenue_per_store_change = metrics.get('avg_revenue_per_store_change', 0.0)
     else:
-        total_customers = total_revenue = average_revenue_per_store = 0
+        new_customers_2022 = total_revenue_2022 = avg_revenue_per_store_2022 = 0
+        new_customers_change = total_revenue_change = avg_revenue_per_store_change = 0.0
 
     # Kacheln mit Metriken hinzufügen
     col1, col2, col3 = st.columns(3)
-    col1.metric("Anzahl Kunden", total_customers)
-    col2.metric("Umsatz total", f"${total_revenue / 1e6:,.2f}Mio")
-    col3.metric("Durchschnittsumsatz pro Store", f"${average_revenue_per_store / 1e6:,.2f} Mio")
-
+    col1.metric("New Customers 2022", new_customers_2022, f"{new_customers_change:.2f}%")
+    col2.metric("Total Revenue 2022", f"${total_revenue_2022 / 1e6:,.2f} Mio", f"{total_revenue_change:.2f}%")
+    col3.metric("Average Revenue for Store 2022", f"${avg_revenue_per_store_2022 / 1e6:,.2f} Mio", f"{avg_revenue_per_store_change:.2f}%")
 
   # Tabs für verschiedene Diagramme und Karten
-    tab1, tab2,tab4, tab5, tab6, tab7, tab8,tab9 = st.tabs(["Location Map", "Store Revenue Map", "Pizza Boxplot", "Scatter Plots", "Pizza Sales Scatter Plot", "Pizza Performance Plot", "Orders Per Hour","Weekday Revenue"])
-
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10,tab11 = st.tabs([
+    "Location Map", "Store Revenue Map", "Weekly Revenue", "Pizza Boxplot", 
+    "Scatter Plots", "Pizza Sales Scatter Plot", "Pizza Art & Size", "Orders Per Hour", 
+    "Pizza Orders Table", "Top 5 Stores Revenue", "Worst 5 Stores Revenue"
+    ])
+    
     with tab1:
         st.header("Location Map for Customers and Stores")
         fig_location_map = create_location_map()
@@ -515,7 +594,14 @@ def overview_dashboard():
         selected_year = st.selectbox('Select Year', ['2020', '2021', '2022'], key='year_filter')
         fig_sales_heatmap = create_sales_heatmap(selected_year)
         st.plotly_chart(fig_sales_heatmap, use_container_width=True)
-        
+
+    with tab3:
+        st.header("Weekday Revenue")
+        store_options = fetch_data("http://localhost:5000/api/store_ids")['store_ids']
+        selected_storeW = st.selectbox("Select Store ID", store_options, key='weekday_revenue_store')
+        if selected_storeW:
+            create_weekday_revenue_bar_chart(selected_storeW)
+            
             
     with tab4:
         st.header("Repeat Orders by Pizza Type")
@@ -539,26 +625,29 @@ def overview_dashboard():
             st.error("Error fetching pizza scatter plot data")
             
     with tab7:
-        st.header("Pizza Performance Scatter Plot")
-        fig_pizza_performance = plot_pizza_performance()
-        if fig_pizza_performance:
-            st.plotly_chart(fig_pizza_performance, use_container_width=True)
-        else:
-            st.error("Error fetching pizza performance data")
+        st.header("Pizza Art & Size")
+        pizza_chart = create_pizza_donut()
+        st.plotly_chart(pizza_chart, use_container_width=True)
+        st.subheader("The data is based for 2022")
+  
+
             
     with tab8:
         st.header("Orders Per Hour")
         store_options = fetch_data("http://localhost:5000/api/store_ids")['store_ids']
-        selected_store = st.selectbox("Select Store ID", store_options, key='orders_per_hour_store')
+        selected_store = st.selectbox("Select Store ID", store_options)
         if selected_store:
             fig_orders_pie_chart = create_orders_pie_chart(selected_store)
             st.plotly_chart(fig_orders_pie_chart, use_container_width=True)
+            
     with tab9:
-        st.header("Weekday Revenue")
-        store_options = fetch_data("http://localhost:5000/api/store_ids")['store_ids']
-        selected_storeW = st.selectbox("Select Store ID", store_options, key='weekday_revenue_store')
-        if selected_storeW:
-            create_weekday_revenue_bar_chart(selected_storeW)
+        pizza_orders_tab()
+
+    with tab10:
+        top_5_stores_tab()
+        
+   # with tab11:
+    #    worst_5_stores_tab()
 
 # Hauptfunktion für das Dashboard
 def main():
@@ -577,14 +666,51 @@ def main():
 # Funktion für das Storeview-Dashboard
 def storeview_dashboard():
     st.title("Storeview Dashboard")
+    
+    # Funktion zum Erstellen des Säulendiagramms der monatlichen Revenues
+def show_monthly_sales(store_id, year):
+    endpoint = f"http://localhost:5000/api/store_monthly_revenues"
+    data = fetch_data(endpoint)
+    
+    if data:
+        store_data = next((item for item in data['store_monthly_revenues'] if item['storeid'] == store_id), None)
+        
+        if store_data:
+            monthly_sales_data = {
+                month: revenue
+                for month, revenue in store_data['monthly_revenues'].items()
+                if month.startswith(year)
+            }
+            
+            if monthly_sales_data:
+                monthly_sales_df = pd.DataFrame(list(monthly_sales_data.items()), columns=['Month', 'Sales'])
+                monthly_sales_df['Month'] = pd.to_datetime(monthly_sales_df['Month'] + '-01')  # Monatliches Datum erstellen
+                monthly_sales_df = monthly_sales_df.set_index('Month').resample('M').sum().reset_index()
+                monthly_sales_df['Month'] = monthly_sales_df['Month'].dt.strftime('%B')
 
-     # Monthly Revenue anzeigen        
-    st.title("monthly Revenue for store")
-    store_id = st.text_input("Gib eine Store-ID ein, um die monatlichen Umsätze anzuzeigen", key='storeview_monthly_revenue')
-    year = st.selectbox("Wähle ein Jahr", ['2020', '2021', '2022'], key='storeview_year')
+                fig = px.bar(monthly_sales_df, x='Month', y='Sales', title=f'Monthly Sales for Store {store_id} in {year}', labels={'Month': 'Month', 'Sales': 'Sales'})
+                st.plotly_chart(fig)
+            else:
+                st.error(f"Keine Daten für Store {store_id} im Jahr {year} verfügbar")
+        else:
+            st.error(f"Keine Daten für Store {store_id} verfügbar oder kein Jahr angegeben")
+    else:
+        st.error("Fehler beim Abrufen der monatlichen Umsätze")
 
-    if store_id and year:
-        show_monthly_sales(store_id, year)
+
+# Funktion für das Storeview-Dashboard
+def storeview_dashboard():
+    # Monthly Revenue anzeigen        
+    st.header("Monthly Revenue for Store")
+    store_options = fetch_data("http://localhost:5000/api/store_ids")['store_ids']  # Fetching store IDs
+
+    if store_options:
+        store_id = st.selectbox('Select a store ID', store_options)
+        year = st.selectbox("Wähle ein Jahr", ['2020', '2021', '2022'])
+
+        if store_id and year:
+            show_monthly_sales(store_id, year)
+
 
    
 
@@ -594,11 +720,11 @@ def storeview_dashboard():
     if store_options:
         store_options.append("None")
 
-        store1 = st.selectbox('Select the first store', store_options, key='storeview_first_store')
-        store2 = st.selectbox('Select the second store (optional)', store_options, index=store_options.index("None"), key='storeview_second_store')
+        store1 = st.selectbox('Select the first store', store_options)
+        store2 = st.selectbox('Select the second store (optional)', store_options, index=store_options.index("None"))
 
         if store1 and store1 != "None":
             create_grouped_bar_chart(store1, store2)
-
+        
 if __name__ == "__main__":
     main()
