@@ -1,0 +1,33 @@
+Vorgehen 
+
+1.löschen Tabelle orders und orderitems weil sie beide von einander abhängig sind: 
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS orderitems;
+
+2. nochmal runterladen: 
+2.1 (orders):
+
+CREATE TABLE orders (
+    orderID INTEGER PRIMARY KEY,
+    customerID VARCHAR(10),
+    storeID VARCHAR(10),
+    orderDate TIMESTAMP, -- Datum und Zeitstempel ohne Zeitzoneninformation
+    nItems INTEGER,
+    total NUMERIC(10, 2)
+);
+
+psql : 
+\copy orders FROM 'C:\\Users\\Admin\\Desktop\\pizza (1)\\orders.csv' DELIMITER ',' CSV HEADER;
+
+2.2 (orderItems): 
+SQL:
+CREATE TABLE orderItems (
+    SKU VARCHAR(255),
+    orderID INTEGER
+);
+
+\copy orderItems FROM 'C:\\Users\\Admin\\Desktop\\pizza (1)\\orderItems.csv' DELIMITER ',' CSV HEADER;
+
+3. Beziehung kenntlichmachen 
+durch wattsappanpinnung 
+

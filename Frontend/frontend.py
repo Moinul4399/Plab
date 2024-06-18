@@ -9,9 +9,6 @@ import statsmodels.api as sm
 import altair as alt
 import datetime as dt
 
-
-
-
 # Funktion zum Abfragen von Backend-Daten
 def fetch_data(url):
     try:
@@ -214,7 +211,8 @@ def show_monthly_sales(store_id, year):
             st.error(f"Keine Daten für Store {store_id} verfügbar oder kein Jahr angegeben")
     else:
         st.error("Fehler beim Abrufen der monatlichen Umsätze")
-    
+
+
 # Funktion zum Erstellen des Histogramms für Kundenbestellungsvergleiche
 def create_grouped_bar_chart(store1, store2):
     endpoint = f"http://localhost:5000/api/store_yearly_avg_orders"
@@ -293,8 +291,9 @@ def create_sales_heatmap(selected_year):
         return px.scatter_geo()
     
     
-# Funktion zum Erstellen des Liniendiagramms der wöchentlichen Umsätze
-def show_weekly_revenue(store_id):
+# Funktion zum Erstellen des Balkendiagramms der Einnahmen pro Wochentag für verschiedene Stores
+
+def create_weekday_revenue_bar_chart(store_id):
     endpoint = "http://localhost:5000/api/revenue_per_weekday"
     data = fetch_data(endpoint)
     
@@ -305,10 +304,12 @@ def show_weekly_revenue(store_id):
             return
 
         df = pd.DataFrame(revenue_data)
-        st.write("Fetched data:", df)  # Debugging-Ausgabe
+
+        # Umwandlung der Werte in numerische Typen
+        df['order_day_of_week'] = pd.to_numeric(df['order_day_of_week'])
+        df['total_revenue'] = pd.to_numeric(df['total_revenue'])
 
         df = df[df['storeid'] == store_id]
-        st.write(f"Filtered data for store {store_id}:", df)  # Debugging-Ausgabe
 
         if df.empty:
             st.error(f"Keine Umsatzdaten für Store {store_id} verfügbar")
@@ -322,22 +323,17 @@ def show_weekly_revenue(store_id):
         ordered_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         df['Day'] = pd.Categorical(df['Day'], categories=ordered_days, ordered=True)
 
-        st.write("Processed data for plotting:", df)  # Debugging-Ausgabe
+        # Überprüfen Sie auf NaN-Werte oder andere unerwartete Daten
+        if df['total_revenue'].isnull().any():
+            st.error("Es gibt NaN-Werte in den Umsatzdaten")
 
-        # Altair zur Visualisierung verwenden
-        chart = alt.Chart(df).mark_line(point=True).encode(
-            x=alt.X('Day', sort=ordered_days, title='Day of the Week'),
-            y=alt.Y('total_revenue', title='Total Revenue')
-        ).properties(
-            title=f'Weekly Revenue for Store {store_id}',
-            width=700,
-            height=400
-        )
-
-        st.altair_chart(chart, use_container_width=True)
+        # Balkendiagramm erstellen
+        fig = px.bar(df, x='Day', y='total_revenue', title=f'Weekly Revenue for Store {store_id}', labels={'Day': 'Day of the Week', 'total_revenue': 'Total Revenue'})
+        
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("Fehler beim Abrufen der wöchentlichen Umsätze")
-
+  
 
 # Neue Scatter Plot Linie für Pizza als Alternative
 # Dummy-Daten erstellen
@@ -399,11 +395,6 @@ def plot_pizza_performance():
 
     return fig
 
-
-
-
-
-
 # Pizza Sales Scatter Plot
 # Funktion zum Erstellen des Streudiagramms für Pizza-Verkäufe und Umsatz
 def create_pizza_scatter_plot():
@@ -464,8 +455,35 @@ def create_pizza_scatter_plot():
     else:
         return None
 
+# Funktion zum Erstellen des Tortendiagramms für Bestellungen pro Stunde
+def create_orders_pie_chart(store_id):
+    url = "http://localhost:5000/api/store_orders_per_hour"
+    data = fetch_data(url)
+    
+    if data:
+        df = pd.DataFrame(data['store_orders_per_hour'])
+        df = df[df['storeid'] == store_id]
+        
+        if df.empty:
+            st.error(f"No order data available for store {store_id}")
+            return go.Figure()
+        
+        # Gruppierung der Daten in 4-Stunden-Intervalle
+        df['order_hour'] = df['order_hour'].astype(int)
+        bins = [0, 4, 8, 12, 16, 20, 24]
+        labels = ['00-04', '04-08', '08-12', '12-16', '16-20', '20-24']
+        df['hour_group'] = pd.cut(df['order_hour'], bins=bins, labels=labels, right=False)
+        
+        grouped_df = df.groupby('hour_group')['total_orders_per_hour'].sum().reset_index()
 
+        # Tortendiagramm erstellen
+        fig = px.pie(grouped_df, values='total_orders_per_hour', names='hour_group', title=f'Total Orders per Hour for Store {store_id} in 4-Hour Intervals')
+        
+        return fig
+    else:
+        return go.Figure()
 
+        
 # Funktion für das Overview-Dashboard
 def overview_dashboard():
     # Daten für Metriken abrufen
@@ -485,7 +503,7 @@ def overview_dashboard():
 
 
   # Tabs für verschiedene Diagramme und Karten
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Location Map", "Store Revenue Map", "Weekly Revenue", "Pizza Boxplot", "Scatter Plots", "Pizza Sales Scatter Plot", "Pizza Performance Plot"])
+    tab1, tab2,tab4, tab5, tab6, tab7, tab8,tab9 = st.tabs(["Location Map", "Store Revenue Map", "Pizza Boxplot", "Scatter Plots", "Pizza Sales Scatter Plot", "Pizza Performance Plot", "Orders Per Hour","Weekday Revenue"])
 
     with tab1:
         st.header("Location Map for Customers and Stores")
@@ -497,24 +515,7 @@ def overview_dashboard():
         selected_year = st.selectbox('Select Year', ['2020', '2021', '2022'], key='year_filter')
         fig_sales_heatmap = create_sales_heatmap(selected_year)
         st.plotly_chart(fig_sales_heatmap, use_container_width=True)
-
-    with tab3:
-        st.header("Weekly Revenue")
-        data = fetch_data("http://localhost:5000/api/revenue_per_weekday")
-        if data:
-            revenue_data = data.get('revenue_per_weekday', [])
-            if not revenue_data:
-                st.error("Keine Umsatzdaten verfügbar")
-            else:
-                df = pd.DataFrame(revenue_data)
-                st.write("Fetched data for all stores:", df)  # Debugging-Ausgabe
-
-                store_options = df['storeid'].unique()
-                selected_store = st.selectbox("Wähle eine Store-ID", store_options)
-                show_weekly_revenue(selected_store)
-        else:
-            st.error("Fehler beim Abrufen der Daten")
-            
+        
             
     with tab4:
         st.header("Repeat Orders by Pizza Type")
@@ -544,9 +545,20 @@ def overview_dashboard():
             st.plotly_chart(fig_pizza_performance, use_container_width=True)
         else:
             st.error("Error fetching pizza performance data")
-        
-        
-
+            
+    with tab8:
+        st.header("Orders Per Hour")
+        store_options = fetch_data("http://localhost:5000/api/store_ids")['store_ids']
+        selected_store = st.selectbox("Select Store ID", store_options, key='orders_per_hour_store')
+        if selected_store:
+            fig_orders_pie_chart = create_orders_pie_chart(selected_store)
+            st.plotly_chart(fig_orders_pie_chart, use_container_width=True)
+    with tab9:
+        st.header("Weekday Revenue")
+        store_options = fetch_data("http://localhost:5000/api/store_ids")['store_ids']
+        selected_storeW = st.selectbox("Select Store ID", store_options, key='weekday_revenue_store')
+        if selected_storeW:
+            create_weekday_revenue_bar_chart(selected_storeW)
 
 # Hauptfunktion für das Dashboard
 def main():
@@ -565,46 +577,11 @@ def main():
 # Funktion für das Storeview-Dashboard
 def storeview_dashboard():
     st.title("Storeview Dashboard")
-    
-    # Funktion zum Erstellen des Säulendiagramms der monatlichen Revenues
-def show_monthly_sales(store_id, year):
-    endpoint = f"http://localhost:5000/api/store_monthly_revenues"
-    data = fetch_data(endpoint)
-    
-    if data:
-        store_data = next((item for item in data['store_monthly_revenues'] if item['storeid'] == store_id), None)
-        
-        if store_data:
-            monthly_sales_data = {
-                month: revenue
-                for month, revenue in store_data['monthly_revenues'].items()
-                if month.startswith(year)
-            }
-            
-            if monthly_sales_data:
-                monthly_sales_df = pd.DataFrame(list(monthly_sales_data.items()), columns=['Month', 'Sales'])
-                monthly_sales_df['Month'] = pd.to_datetime(monthly_sales_df['Month'] + '-01')  # Monatliches Datum erstellen
-                monthly_sales_df = monthly_sales_df.set_index('Month').resample('M').sum().reset_index()
-                monthly_sales_df['Month'] = monthly_sales_df['Month'].dt.strftime('%B')
-
-                fig = px.bar(monthly_sales_df, x='Month', y='Sales', title=f'Monthly Sales for Store {store_id} in {year}', labels={'Month': 'Month', 'Sales': 'Sales'})
-                st.plotly_chart(fig)
-            else:
-                st.error(f"Keine Daten für Store {store_id} im Jahr {year} verfügbar")
-        else:
-            st.error(f"Keine Daten für Store {store_id} verfügbar oder kein Jahr angegeben")
-    else:
-        st.error("Fehler beim Abrufen der monatlichen Umsätze")
-
-
-# Funktion für das Storeview-Dashboard
-def storeview_dashboard():
-    st.title("Storeview Dashboard")
 
      # Monthly Revenue anzeigen        
     st.title("monthly Revenue for store")
-    store_id = st.text_input("Gib eine Store-ID ein, um die monatlichen Umsätze anzuzeigen")
-    year = st.selectbox("Wähle ein Jahr", ['2020', '2021', '2022'])
+    store_id = st.text_input("Gib eine Store-ID ein, um die monatlichen Umsätze anzuzeigen", key='storeview_monthly_revenue')
+    year = st.selectbox("Wähle ein Jahr", ['2020', '2021', '2022'], key='storeview_year')
 
     if store_id and year:
         show_monthly_sales(store_id, year)
@@ -617,11 +594,11 @@ def storeview_dashboard():
     if store_options:
         store_options.append("None")
 
-        store1 = st.selectbox('Select the first store', store_options)
-        store2 = st.selectbox('Select the second store (optional)', store_options, index=store_options.index("None"))
+        store1 = st.selectbox('Select the first store', store_options, key='storeview_first_store')
+        store2 = st.selectbox('Select the second store (optional)', store_options, index=store_options.index("None"), key='storeview_second_store')
 
         if store1 and store1 != "None":
             create_grouped_bar_chart(store1, store2)
-        
+
 if __name__ == "__main__":
     main()
