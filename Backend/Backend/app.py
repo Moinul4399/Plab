@@ -471,7 +471,7 @@ def boxplot_data_metrics ():
     except Exception as e:
         return jsonify({"error": f"Error fetching data: {str(e)}"}), 500
 
-
+#für cengo
 @app.route('/api/top_5_stores')
 def top_5_stores():
     try:
@@ -515,7 +515,7 @@ def top_5_stores():
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
-
+#für cengo
 @app.route('/api/worst_5_stores')
 def worst_5_stores():
     try:
@@ -558,6 +558,8 @@ def worst_5_stores():
         return jsonify({'worst_5_stores': worst_stores})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
+
+
 #für Cengo
 @app.route('/api/revenues_by_pizza_type_2022')
 def revenues_by_pizza_type_2022():
@@ -565,15 +567,22 @@ def revenues_by_pizza_type_2022():
         query = text("""
             SELECT
                 p.name AS pizza_name,
-                SUM(oi.quantity * p.price) AS total_revenue
-            FROM
-                orderitems oi
-            JOIN
-                products p ON oi.sku = p.sku
-            JOIN
-                orders o ON oi.orderid = o.orderid
-            WHERE
-                EXTRACT(YEAR FROM o.orderdate) = 2022
+                SUM(count_oi * p.price) AS total_revenue
+            FROM (
+                SELECT 
+                    oi.sku, 
+                    COUNT(oi.sku) AS count_oi
+                FROM 
+                    orderitems oi
+                JOIN 
+                    orders o ON oi.orderid = o.orderid
+                WHERE 
+                    EXTRACT(YEAR FROM o.orderdate) = 2022
+                GROUP BY 
+                    oi.sku
+            ) oi_summary
+            JOIN 
+                products p ON oi_summary.sku = p.sku
             GROUP BY
                 p.name
             ORDER BY
@@ -581,12 +590,10 @@ def revenues_by_pizza_type_2022():
         """)
         result = db.session.execute(query)
         data = result.fetchall()
-
         revenues = [{'pizza_name': row[0], 'total_revenue': row[1]} for row in data]
         return jsonify({'revenues_by_pizza_type_2022': revenues})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
-
 
 
 if __name__ == '__main__':
