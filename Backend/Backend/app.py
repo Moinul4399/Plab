@@ -470,7 +470,6 @@ def boxplot_data_metrics ():
 
     except Exception as e:
         return jsonify({"error": f"Error fetching data: {str(e)}"}), 500
-
 #für cengo
 @app.route('/api/top_5_stores')
 def top_5_stores():
