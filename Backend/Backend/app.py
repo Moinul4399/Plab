@@ -418,7 +418,8 @@ def pizza_orders():
         return jsonify({'pizza_orders_by_category': pizza_orders_by_category})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
- #für cengo
+    
+# Tabelle top  5 Stores
 @app.route('/api/top_5_stores')
 def top_5_stores():
     try:
@@ -462,7 +463,7 @@ def top_5_stores():
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
-#für cengo
+# Tabelle worst 5 Stores
 @app.route('/api/worst_5_stores')
 def worst_5_stores():
     try:
@@ -507,7 +508,7 @@ def worst_5_stores():
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
 
-#für Cengo
+#Donut Chart
 @app.route('/api/revenues_by_pizza_type_2022')
 def revenues_by_pizza_type_2022():
     try:
