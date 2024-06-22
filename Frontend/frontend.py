@@ -175,8 +175,6 @@ def create_scatter_plots():
     
 # monthly bar chart
 # Funktion zum Erstellen des Säulendiagramms der monatlichen Revenues
-# monthly bar chart
-# Funktion zum Erstellen des Säulendiagramms der monatlichen Revenues
 def show_monthly_sales(store_id, year):
     endpoint = f"http://localhost:5000/api/store_monthly_revenues"
     data = fetch_data(endpoint)
@@ -396,39 +394,33 @@ def create_pizza_scatter_plot():
     
     
     
-# Pie Chart für Verkauf last 6 months
-# Dummy-Daten
-pizza_data = {
-    'PizzaType': ['Margherita', 'Pepperoni', 'Hawaiian', 'Veggie', 'BBQ Chicken', 'Supreme', 'Meat Lovers', 'Cheese', 'Sausage'],
-    'TotalSales': [120, 150, 80, 90, 70, 110, 60, 100, 50]
-}
-
-sizes_data = {
-    'PizzaType': ['Margherita', 'Margherita', 'Margherita', 'Margherita', 
-                 'Pepperoni', 'Pepperoni', 'Pepperoni', 'Pepperoni',
-                 'Hawaiian', 'Hawaiian', 'Hawaiian', 'Hawaiian',
-                 'Veggie', 'Veggie', 'Veggie', 'Veggie',
-                 'BBQ Chicken', 'BBQ Chicken', 'BBQ Chicken', 'BBQ Chicken',
-                 'Supreme', 'Supreme', 'Supreme', 'Supreme',
-                 'Meat Lovers', 'Meat Lovers', 'Meat Lovers', 'Meat Lovers',
-                 'Cheese', 'Cheese', 'Cheese', 'Cheese',
-                 'Sausage', 'Sausage', 'Sausage', 'Sausage'],
-    'Size': ['Small', 'Medium', 'Large', 'X-Large'] * 9,
-    'Sales': np.random.randint(20, 50, size=36)
-}
-
-df_pizza = pd.DataFrame(pizza_data)
-df_sizes = pd.DataFrame(sizes_data)
 
 # Funktion zum Erstellen des Donut-Diagramms
 def create_pizza_donut():
-    fig = px.pie(df_pizza, values='TotalSales', names='PizzaType', hole=0.3, title='Distribution of Pizza Types')
-    fig.update_traces(textinfo='label', hovertemplate='<b>%{label}</b><br>Sales: %{value}<br>Percentage: %{percent:.2%}')
-    return fig
+    url = "http://localhost:5000/api/revenues_by_pizza_type_2022"
+    donut_data = fetch_data(url)
+
+    if donut_data:
+        df_pizza = pd.DataFrame(donut_data['revenues_by_pizza_type_2022'])
+
+        # Erstellen des Donut-Diagramms
+        fig = px.pie(df_pizza, values='total_revenue', names='pizza_name', hole=0.3, title='The data is based for 2022')
+        fig.update_traces(
+            textinfo='label', 
+            hovertemplate='<b>%{label}</b><br>Revenue: $%{value:,.2f}<br>Percentage: %{percent:.2%}'
+        )
+
+        # Anpassung des Layouts für größere Grafik
+        fig.update_layout(
+            margin=dict(t=50, b=50, l=50, r=50),
+            height=550,  # Höhe der Grafik vergrößern
+        )
+        
+        return fig
+    else:
+        return None
 
 
-    
-    
     
 
 
@@ -493,7 +485,7 @@ def pizza_orders_tab():
         
         # Spaltennamen anpassen
         df_pivot.columns.name = None
-        df_pivot = df_pivot.rename(columns={'pizza_category': 'Pizza Category', 2020: '2020 Orders', 2021: '2021 Orders', 2022: '2022 Orders'})
+        df_pivot = df_pivot.rename(columns={'pizza_category': 'Pizza Category', 2020: '2020 ', 2021: '2021 ', 2022: '2022 '})
 
         # Index-Spalte hinzufügen und bei 1 beginnen lassen
         df_pivot.index = df_pivot.index + 1
@@ -511,7 +503,7 @@ def pizza_orders_tab():
     
 # Tabelle top 5 Stores 
 def top_5_stores_tab():
-    st.header("Top 5 Stores Revenue")
+    st.header("Top 5 Stores Table")
     
     # URL der Backend-API
     API_URL = "http://localhost:5000/api/top_5_stores"  # Passen Sie die URL an Ihre Konfiguration an
@@ -523,38 +515,65 @@ def top_5_stores_tab():
         top_stores = data["top_5_stores"]
         df = pd.DataFrame(top_stores)
         
-        # Pivot-Tabelle erstellen
-        df_pivot = df.pivot_table(
-            index='storeid',
-            columns='year',
-            values='annual_sales',
-            aggfunc='sum',
-            fill_value=0
-        ).reset_index()
-        
-        # Stellen Sie sicher, dass die Werte numerisch sind
-        df_pivot = df_pivot.apply(pd.to_numeric, errors='ignore')
+        # Sicherstellen, dass die 'year' und 'annual_sales' Spalten numerisch sind
+        df['year'] = pd.to_numeric(df['year'], errors='coerce')
+        df['annual_sales'] = pd.to_numeric(df['annual_sales'], errors='coerce')
 
-        # Gesamtumsatz hinzufügen
-        df_pivot['Total Sales'] = df_pivot.iloc[:, 1:].sum(axis=1)
-        
-        # Spaltennamen anpassen
-        df_pivot.columns.name = None
-        df_pivot = df_pivot.rename(columns={'storeid': 'Store ID', 2020: '2020 Sales', 2021: '2021 Sales', 2022: '2022 Sales'})
+        # Separate DataFrames für jedes Jahr erstellen und sortieren
+        for year in [2020, 2021, 2022]:
+            df_year = df[df['year'] == year].sort_values(by='annual_sales', ascending=False).reset_index(drop=True)
+            df_year.index = df_year.index + 1  # Index bei 1 beginnen lassen
 
-        # Index-Spalte hinzufügen und bei 1 beginnen lassen
-        df_pivot.index = df_pivot.index + 1
-        df_pivot.index.name = "Index"
+            # Spalten in der gewünschten Reihenfolge anordnen und umbenennen
+            df_year = df_year[['storeid', 'annual_sales']]
+            df_year.columns = ['Store ID', 'Revenue']
 
-        # Daten in einer Tabelle anzeigen
-        if not df_pivot.empty:
-            st.dataframe(df_pivot)
-        else:
-            st.write("No data available.")
+            if not df_year.empty:
+                st.subheader(f"Top 5 Stores in {year}")
+                st.dataframe(df_year)
+            else:
+                st.write(f"No data available for {year}.")
     else:
         st.write("Failed to fetch data from the API.")
 
+
+# Tabelle worst 5 Stores
+def worst_5_stores_tab():
+    st.header("Worst 5 Stores Table")
+    
+    # URL der Backend-API
+    API_URL = "http://localhost:5000/api/worst_5_stores"  # Passen Sie die URL an Ihre Konfiguration an
+
+    # Daten von der API abrufen
+    data = fetch_data(API_URL)
+
+    if data and "worst_5_stores" in data:
+        worst_stores = data["worst_5_stores"]
+        df = pd.DataFrame(worst_stores)
         
+        # Sicherstellen, dass die 'year' und 'annual_sales' Spalten numerisch sind
+        df['year'] = pd.to_numeric(df['year'], errors='coerce')
+        df['annual_sales'] = pd.to_numeric(df['annual_sales'], errors='coerce')
+
+        # Separate DataFrames für jedes Jahr erstellen und sortieren
+        for year in [2020, 2021, 2022]:
+            df_year = df[df['year'] == year].sort_values(by='annual_sales', ascending=True).reset_index(drop=True)
+            df_year.index = df_year.index + 1  # Index bei 1 beginnen lassen
+
+            # Spalten in der gewünschten Reihenfolge anordnen und umbenennen
+            df_year = df_year[['storeid', 'annual_sales']]
+            df_year.columns = ['Store ID', 'Revenue']
+
+            if not df_year.empty:
+                st.subheader(f"Worst 5 Stores in {year}")
+                st.dataframe(df_year)
+            else:
+                st.write(f"No data available for {year}.")
+    else:
+        st.write("Failed to fetch data from the API.")
+
+
+
         
 # Funktion für das Overview-Dashboard
 def overview_dashboard():
@@ -628,7 +647,6 @@ def overview_dashboard():
         st.header("Pizza Art & Size")
         pizza_chart = create_pizza_donut()
         st.plotly_chart(pizza_chart, use_container_width=True)
-        st.subheader("The data is based for 2022")
   
 
             
@@ -646,8 +664,8 @@ def overview_dashboard():
     with tab10:
         top_5_stores_tab()
         
-   # with tab11:
-    #    worst_5_stores_tab()
+    with tab11:
+         worst_5_stores_tab()
 
 # Hauptfunktion für das Dashboard
 def main():
