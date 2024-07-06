@@ -208,6 +208,38 @@ def get_metrics():
         """)
         average_revenue_per_store_result = db.session.execute(average_revenue_per_store_query).scalar()
 
+        # Median revenue from stores in 2022
+        median_revenue_from_stores_query = text("""
+             WITH StoreRevenues AS (
+                SELECT
+                    o.storeid,
+                    SUM(p.price * o.nitems) AS total_revenue 
+                FROM
+                    orders o
+                    JOIN orderitems oi ON o.orderid = oi.orderid
+                    JOIN products p ON oi.sku = p.sku
+                WHERE
+                    EXTRACT(YEAR FROM o.orderdate) = 2022 
+                GROUP BY
+                    o.storeid
+            ),
+            RankedRevenues AS (
+                SELECT
+                    storeid,
+                    total_revenue,
+                    ROW_NUMBER() OVER (ORDER BY total_revenue) AS row_num  -- Order by total_revenue (ascending)
+                FROM
+                    StoreRevenues
+            )
+            SELECT
+                AVG(total_revenue) AS median_revenue
+            FROM
+                RankedRevenues
+            WHERE
+                row_num IN (16, 17);  -- Select rows 16 and 17)""")
+        median_revenue_from_stores_result = db.session.execute(median_revenue_from_stores_query).scalar()
+
+
         # Neukunden 2021 und 2022 query
         new_customers_query = text("""
             WITH first_orders AS (
@@ -307,6 +339,7 @@ def get_metrics():
         average_revenue_per_store = float(average_revenue_per_store_result)
         new_customers_2021 = int(new_customers_result[0])
         new_customers_2022 = int(new_customers_result[1])
+        median_revenue_from_stores = int(median_revenue_from_stores_result)
 
         total_revenue_per_year = {row[0]: float(row[1]) for row in total_revenue_per_year_result}
         average_revenue_per_store_per_year = {row[0]: float(row[1]) for row in average_revenue_per_store_per_year_result}
@@ -326,6 +359,7 @@ def get_metrics():
             'total_customers': total_customers,
             'total_revenue': total_revenue,
             'average_revenue_per_store': average_revenue_per_store,
+            'median_revenue_from_stores_2022' : median_revenue_from_stores,
             'new_customers_2021': new_customers_2021,
             'new_customers_2022': new_customers_2022,
             'total_revenue_2022': total_revenue_2022,
