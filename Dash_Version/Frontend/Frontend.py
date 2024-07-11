@@ -21,66 +21,6 @@ def fetch_data(url):
     except requests.RequestException as e:
         return None
 
-
-
-
-def create_location_map():
-    store_data = fetch_data("http://localhost:5000/api/store_locations")
-    customer_data = fetch_data("http://localhost:5000/api/customer_locations")
-
-    if store_data and customer_data:
-        store_df = pd.DataFrame(store_data['store_locations'])
-        customer_df = pd.DataFrame(customer_data['customer_locations'])
-
-        store_df['Type'] = 'Store'
-        customer_df['Type'] = 'Customer'
-
-        data = pd.concat([customer_df, store_df], ignore_index=True)
-
-        fig = go.Figure()
-        for type, details in zip(["Customer", "Store"], [{"color": "green", "size": 6}, {"color": "blue", "size": 15}]):
-            df = data[data["Type"] == type]
-            fig.add_trace(go.Scattergeo(
-                lon=df['longitude'],
-                lat=df['latitude'],
-                text=df['city'] + ' (' + df['Type'] + ')' if 'city' in df.columns else df['Type'], 
-                marker=dict(
-                    size=details["size"],
-                    color=details["color"],
-                    line=dict(width=1, color='rgba(0,0,0,0)')
-                ),
-                hovertemplate='%{text}<extra></extra>',
-                name=type
-            ))
-
-        focus_lat = 37.7749
-        focus_lon = -122.4194
-
-        fig.update_layout(
-            showlegend=True,
-            legend=dict(
-                x=1.05,
-                y=0.5,
-                font=dict(size=14),
-                bgcolor="rgba(0, 0, 0, 0)",
-                bordercolor="Black",
-                borderwidth=0
-            ),
-            geo=dict(
-                projection_type='albers usa',
-                center=dict(lat=focus_lat, lon=focus_lon),
-                showland=True,
-                landcolor="rgb(217, 217, 217)",
-                subunitcolor="rgb(255, 255, 255)",
-                subunitwidth=0.5,
-                fitbounds="locations",
-            ),
-            margin={"r":0,"t":0,"l":0,"b":0}
-        )
-        return fig
-    else:
-        return go.Figure()
-
 # Funktion zum Erstellen der Sales Heatmap
 def create_sales_heatmap(selected_year):
     revenue_data = fetch_data(f"http://localhost:5000/api/store_annual_revenues")
@@ -249,33 +189,25 @@ def show_monthly_sales(store_id, year):
     else:
         return go.Figure()
 
-def create_grouped_bar_chart(store1, store2):
-    endpoint = f"http://localhost:5000/api/store_yearly_avg_orders"
+def create_grouped_bar_chart(store_id):
+    endpoint = f"http://localhost:5000/api/store_yearly_avg_orders?store_id={store_id}"
     data = fetch_data(endpoint)
     
     if data:
-        if store2 == "None":
-            df_filtered = [item for item in data if item['storeid'] == store1]
-        else:
-            df_filtered = [item for item in data if item['storeid'] in [store1, store2]]
-        
-        df_grouped = pd.DataFrame(df_filtered)
+        df_grouped = pd.DataFrame(data)
         df_grouped = df_grouped.groupby(['year', 'storeid'])['avg_orders_per_customer'].sum().reset_index()
         
         df_grouped['avg_orders_per_customer'] = df_grouped['avg_orders_per_customer'].round().astype(int)
 
         fig = go.Figure()
 
-        for store in [store1, store2]:
-            if store == "None":
-                continue
-            df_store = df_grouped[df_grouped['storeid'] == store]
-            fig.add_trace(go.Bar(
-                x=df_store['year'],
-                y=df_store['avg_orders_per_customer'],
-                name=store,
-                hovertemplate='<b>Year:</b> %{x}<br><b>Orders:</b> %{y:.1f}k<extra></extra>'
-            ))
+        df_store = df_grouped[df_grouped['storeid'] == store_id]
+        fig.add_trace(go.Bar(
+            x=df_store['year'],
+            y=df_store['avg_orders_per_customer'],
+            name=store_id,
+            hovertemplate='<b>Year:</b> %{x}<br><b>Orders:</b> %{y:.1f}k<extra></extra>'
+        ))
 
         fig.update_layout(
             barmode='group',
@@ -288,6 +220,8 @@ def create_grouped_bar_chart(store1, store2):
         return fig
     else:
         return go.Figure()
+
+
 
 
 # Scatter plot pizza
@@ -604,6 +538,19 @@ app.layout = html.Div([
         dbc.Col(html.H1("Pizzeria Dashboard", className="text-center"), width=8)
     ]),
     dbc.Row([
+        dbc.Col(
+            dcc.Dropdown(
+                id='global-year-dropdown',
+                options=[{'label': str(year), 'value': year} for year in range(2018, 2023)],
+                value=2022,
+                clearable=False,
+                style={"width": "200px", "margin": "0 auto"}  # Set width and center it
+            ),
+            width={"size": 2, "offset": 5},  # Center the column in the row
+            style={"textAlign": "center"}  # Center text within the column
+        )
+    ]),
+    dbc.Row([
         dbc.Col(dbc.Card(dbc.CardBody([
             html.H5("New Customers 2022"),
             html.H2(id="new-customers", className="card-title")
@@ -619,15 +566,6 @@ app.layout = html.Div([
     ]),
     dcc.Tabs([
         dcc.Tab(label='Overview', children=[
-            dbc.Row([
-                dbc.Col(html.Div([
-                    dcc.Dropdown(
-                        id='overview-store-dropdown',
-                        options=[{'label': store_id, 'value': store_id} for store_id in fetch_data("http://localhost:5000/api/store_ids")['store_ids']],
-                        value=None
-                    )
-                ]), width=12)
-            ]),
             dbc.Row([
                 dbc.Col(dcc.Graph(id='scatterplot-revenue'), width=12)  # Hier wird der Revenue Scatterplot hinzugefügt
             ]),
@@ -650,8 +588,8 @@ app.layout = html.Div([
                     html.H3("Top 5 Stores 2022"),
                     html.Div(id='top-stores-2022')
                 ]), width=4)
-        ]),
-                    dbc.Row([
+            ]),
+            dbc.Row([
                 dbc.Col(html.Div([
                     html.H3("Worst 5 Stores 2020"),
                     html.Div(id='worst-stores-2020')
@@ -668,55 +606,29 @@ app.layout = html.Div([
         ]),
         dcc.Tab(label='Storeview', children=[
             dbc.Row([
-                dbc.Col(html.Div([
-                    dcc.Dropdown(
-                        id='year-dropdown',
-                        options=[{'label': str(year), 'value': year} for year in range(2018, 2023)],
-                        value=2022
-                    ),
-                    dcc.Dropdown(
-                        id='store-dropdown',
-                        options=[{'label': store_id, 'value': store_id} for store_id in fetch_data("http://localhost:5000/api/store_ids")['store_ids']],
-                        value=None
-                    )
-                ]), width=12)
+                dbc.Col(dcc.Graph(id='revenue-map'), width=12, style={"textAlign": "center"})  # Center the heatmap
             ]),
             dbc.Row([
-                dbc.Col(dcc.Graph(id='revenue-map'), width=6),
-                dbc.Col(dcc.Graph(figure=create_location_map()), width=6)
+                dbc.Col(dcc.Graph(id='weekly-revenue-chart'), width=6),
+                dbc.Col(dcc.Graph(id='hourly-orders-chart'), width=6)
             ]),
             dbc.Row([
-                dbc.Col(html.Div([
-                    dcc.Graph(id='weekly-revenue-chart')
-                ]), width=6),
-                dbc.Col(html.Div([
-                    dcc.Graph(id='hourly-orders-chart')
-                ]), width=6)
-            ]),
-            dbc.Row([
-                dbc.Col(html.Div([
-                    dcc.Graph(id='monthly-revenue')
-                ]), width=6),
+                dbc.Col(dcc.Graph(id='monthly-revenue'), width=6),
                 dbc.Col(dcc.Graph(id='repeat-order'), width=6)
             ])
         ]),
         dcc.Tab(label='Customerview', children=[
             dbc.Row([
-                dbc.Col(html.Div([
-                    dcc.Dropdown(
-                        id='customer-dropdown',
-                        options=[{'label': store_id, 'value': store_id} for store_id in fetch_data("http://localhost:5000/api/store_ids")['store_ids']],
-                        value=None
-                    )
-                ]), width=12)
-            ]),
+                dbc.Col(dcc.Graph(id='repeat-order-customer'), width=6),
+                dbc.Col(dcc.Graph(id='rfm-scatter-chart'), width=6)
+    ]),
             dbc.Row([
-                dbc.Col(dcc.Graph(id='customer-location-map'), width=6),
-                dbc.Col(dcc.Graph(id='repeat-order-customer'), width=6)
-            ])
-        ])
+            dbc.Col(html.Div(id='aggregated-monetary-table'), width=12)
     ])
 ])
+
+        ])
+    ])
 
 
 
@@ -757,22 +669,26 @@ def update_metrics(_):
         Output('repeat-order', 'figure')
     ],
     [
-        Input('year-dropdown', 'value'),
-        Input('store-dropdown', 'value')
+        Input('global-year-dropdown', 'value'),
+        Input('revenue-map', 'clickData')
     ]
 )
-def update_storeview_charts(selected_year, selected_store):
-    if not selected_year or not selected_store:
+def update_storeview_charts(selected_year, click_data):
+    if not selected_year:
         return [go.Figure()] * 5
 
+    selected_store = click_data['points'][0]['customdata'][0] if click_data and 'points' in click_data else None
+
     revenue_map_fig = create_sales_heatmap(selected_year)
+    if not selected_store:
+        return [revenue_map_fig, go.Figure(), go.Figure(), go.Figure(), go.Figure()]
+
     weekly_revenue_fig = create_weekday_revenue_bar_chart(selected_store)
     hourly_orders_fig = create_hourly_orders_bar_chart(selected_store)
     monthly_revenue_fig = show_monthly_sales(selected_store, str(selected_year))
-    repeat_order_fig = create_grouped_bar_chart(selected_store, 'None')
+    repeat_order_fig = create_grouped_bar_chart(selected_store)
     
     return revenue_map_fig, weekly_revenue_fig, hourly_orders_fig, monthly_revenue_fig, repeat_order_fig
-
 
 @app.callback(
     [
@@ -780,54 +696,15 @@ def update_storeview_charts(selected_year, selected_store):
         Output('pizza-donut', 'figure'),
         Output('pizza-scatterplot', 'figure')
     ],
-    [Input('overview-store-dropdown', 'value')]
+    [Input('url', 'pathname')]
 )
-def update_overview_charts(selected_store):
+def update_overview_charts(_):
     scatterplot_revenue_fig = create_scatter_plots()
     pizza_donut_fig = create_pizza_donut()
     pizza_scatter_plot_fig = create_pizza_scatter_plot()
     
     return scatterplot_revenue_fig, pizza_donut_fig, pizza_scatter_plot_fig
 
-
-@app.callback(
-    [
-        Output('customer-location-map', 'figure'),
-        Output('repeat-order-customer', 'figure')
-    ],
-    [Input('customer-dropdown', 'value')]
-)
-def update_customer_charts(selected_store):
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return [go.Figure()] * 2
-    
-    input_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    
-    if input_id == 'customer-dropdown':
-        location_map_fig = create_location_map()  # Modify if needed to filter by store
-        repeat_order_customer_fig = create_grouped_bar_chart(selected_store, 'None')  # Modify if needed to filter by store
-        
-        return location_map_fig, repeat_order_customer_fig
-    
-    return [go.Figure()] * 2
-
-# Callback zur Aktualisierung des Dropdown-Werts basierend auf der Auswahl in der Heatmap
-@app.callback(
-    Output('store-dropdown', 'value'),
-    [Input('revenue-map', 'clickData')]
-)
-def update_store_dropdown(click_data):
-    if click_data and 'points' in click_data:
-        selected_store = click_data['points'][0]['customdata'][0]
-        return selected_store
-    return None
-
-
-
-
-
-# Table App Callback
 @app.callback(
     [
         Output('top-stores-2020', 'children'),
@@ -837,22 +714,47 @@ def update_store_dropdown(click_data):
         Output('worst-stores-2021', 'children'),
         Output('worst-stores-2022', 'children')
     ],
-    [Input('url', 'pathname')]
+    [Input('global-year-dropdown', 'value')]
 )
-def update_stores_tables(_):
+def update_stores_tables(selected_year):
     store_colors = {}
     color_generator = generate_colors()
     
-    top_stores_2020, top_styles_2020 = create_top_stores_table(2020, store_colors, color_generator)
-    top_stores_2021, top_styles_2021 = create_top_stores_table(2021, store_colors, color_generator)
-    top_stores_2022, top_styles_2022 = create_top_stores_table(2022, store_colors, color_generator)
+    top_stores_2020, _ = create_top_stores_table(2020, store_colors, color_generator)
+    top_stores_2021, _ = create_top_stores_table(2021, store_colors, color_generator)
+    top_stores_2022, _ = create_top_stores_table(2022, store_colors, color_generator)
     
-    worst_stores_2020, worst_styles_2020 = create_worst_stores_table(2020, store_colors, color_generator)
-    worst_stores_2021, worst_styles_2021 = create_worst_stores_table(2021, store_colors, color_generator)
-    worst_stores_2022, worst_styles_2022 = create_worst_stores_table(2022, store_colors, color_generator)
+    worst_stores_2020, _ = create_worst_stores_table(2020, store_colors, color_generator)
+    worst_stores_2021, _ = create_worst_stores_table(2021, store_colors, color_generator)
+    worst_stores_2022, _ = create_worst_stores_table(2022, store_colors, color_generator)
     
     return top_stores_2020, top_stores_2021, top_stores_2022, worst_stores_2020, worst_stores_2021, worst_stores_2022
 
+@app.callback(
+    [
+        Output('repeat-order-customer', 'figure'),
+        Output('rfm-scatter-chart', 'figure'),
+        Output('aggregated-monetary-table', 'children')
+    ],
+    [
+        Input('revenue-map', 'clickData'),
+        Input('global-year-dropdown', 'value')
+    ]
+)
+def update_customer_charts(click_data, selected_year):
+    if not click_data or 'points' not in click_data:
+        return [go.Figure(), go.Figure(), "No data"]
+    
+    selected_store = click_data['points'][0]['customdata'][0]
+    
+    repeat_order_customer_fig = create_grouped_bar_chart(selected_store)
+    rfm_scatter_fig = create_rfm_scatter_chart(selected_store)
+    aggregated_monetary_table = create_aggregated_monetary_table(selected_store)
+    
+    return repeat_order_customer_fig, rfm_scatter_fig, aggregated_monetary_table
 
+
+
+    
 if __name__ == '__main__':
     app.run_server(debug=True)

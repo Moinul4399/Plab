@@ -1,4 +1,5 @@
 from functools import cache
+from cachetools import Cache
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
@@ -11,6 +12,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# Cache-Konfiguration
+app.config['CACHE_TYPE'] = 'SimpleCache'
+app.config['CACHE_DEFAULT_TIMEOUT'] = 300
+cache = Cache(app)
 
 
 @app.route('/api/top_5_stores')
@@ -508,6 +513,7 @@ def store_yearly_avg_orders():
         app.logger.error(f"Error fetching data: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/store_ids')
 def get_store_ids():
     try:
@@ -656,7 +662,6 @@ def calculate_rfm_for_2022_by_store(df):
     return rfm_results
 
 @app.route('/api/rfm_segments')
-@cache.cached(timeout=300)
 def get_rfm_segments():
     try:
         store_id = request.args.get('store_id')
@@ -704,6 +709,7 @@ def get_rfm_segments():
         return jsonify({'rfm_segments': rfm_response})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
+
 
 if __name__ == '__main__':
     app.run(debug=True)
