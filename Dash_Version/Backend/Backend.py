@@ -1,24 +1,57 @@
+
 from functools import cache
 from cachetools import Cache
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 from sqlalchemy import text
+from flask_caching import Cache
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 app = Flask(__name__)
 
 # Datenbank-Konfiguration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/Database1.1'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/Database1'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+
+# Engine und Session konfigurieren
+engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'], pool_size=20, max_overflow=20, pool_timeout=30, pool_recycle=3600)
+Session = sessionmaker(bind=engine)
 db = SQLAlchemy(app)
+
+
+# Indexe erstellen
+def create_indexes():
+    with engine.connect() as connection:
+        # Indexe für Tabelle orders
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_orders_orderdate ON orders(orderdate);"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_orders_storeid ON orders(storeid);"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_orders_customerid ON orders(customerid);"))
+        
+        # Indexe für Tabelle stores
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_stores_storeid ON stores(storeid);"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_stores_latitude ON stores(latitude);"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_stores_longitude ON stores(longitude);"))
+        
+        # Indexe für Tabelle customers
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_customers_customerid ON customers(customerid);"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_customers_latitude ON customers(latitude);"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_customers_longitude ON customers(longitude);"))
+        
+        # Indexe für Tabelle products
+        connection.execute(text("CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);"))
+
+create_indexes()
 
 # Cache-Konfiguration
 app.config['CACHE_TYPE'] = 'SimpleCache'
 app.config['CACHE_DEFAULT_TIMEOUT'] = 300
 cache = Cache(app)
 
-
 @app.route('/api/top_5_stores')
+@cache.cached(timeout=300)
 def get_top_stores():
     try:
         query = text("""
@@ -51,6 +84,7 @@ def get_top_stores():
     
 # Worst 5 Stores
 @app.route('/api/worst_5_stores')
+@cache.cached(timeout=300)
 def get_worst_stores():
     try:
         query = text("""
@@ -84,6 +118,7 @@ def get_worst_stores():
 
 # Store Locations
 @app.route('/api/store_locations')
+@cache.cached(timeout=300)
 def store_locations():
     try:
         query = text("""
@@ -101,6 +136,7 @@ def store_locations():
 
 # Customer Locations
 @app.route('/api/customer_locations')
+@cache.cached(timeout=300)
 def customer_locations():
     try:
         query = text("""
@@ -116,6 +152,7 @@ def customer_locations():
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
 @app.route('/api/store_annual_revenues')
+@cache.cached(timeout=300)
 def store_annual_revenues():
     try:
         query = text("""
@@ -157,6 +194,7 @@ def store_annual_revenues():
     
 # Scatter Plot
 @app.route('/api/scatterplot')
+@cache.cached(timeout=300)
 def get_store_data():
     try:
         revenue_query = text("""
@@ -218,6 +256,7 @@ def get_store_data():
 
 
 @app.route('/api/metrics')
+@cache.cached(timeout=300)
 def get_metrics():
     try:
         total_customers_query = text("SELECT COUNT(*) FROM customers;")
@@ -303,6 +342,7 @@ def get_metrics():
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
 @app.route('/api/store_monthly_revenues')
+@cache.cached(timeout=300)
 def store_monthly_revenues():
     try:
         query = text("""
@@ -353,6 +393,7 @@ def store_monthly_revenues():
 
 # Tabelle für top n kategories
 @app.route('/api/pizza_orders')
+@cache.cached(timeout=300)
 def pizza_orders():
     try:
         query = text("""
@@ -385,6 +426,7 @@ def pizza_orders():
 
 # Table Top 5 Stores
 @app.route('/api/top_5_stores')
+@cache.cached(timeout=300)
 def top_5_stores():
     try:
         query = text("""
@@ -414,6 +456,7 @@ def top_5_stores():
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
 @app.route('/api/worst_5_stores')
+@cache.cached(timeout=300)
 def worst_5_stores():
     try:
         query = text("""
@@ -444,6 +487,7 @@ def worst_5_stores():
 
 # Donut Chart
 @app.route('/api/revenues_by_pizza_type')
+@cache.cached(timeout=300)
 def revenues_by_pizza_type():
     try:
         query = text("""
@@ -483,6 +527,7 @@ def revenues_by_pizza_type():
 
 
 @app.route('/api/store_yearly_avg_orders')
+@cache.cached(timeout=300)
 def store_yearly_avg_orders():
     try:
         query = text("""
@@ -515,6 +560,7 @@ def store_yearly_avg_orders():
 
 
 @app.route('/api/store_ids')
+@cache.cached(timeout=300)
 def get_store_ids():
     try:
         query = text("SELECT storeid FROM stores;")
@@ -526,6 +572,7 @@ def get_store_ids():
 
 # Scatter Plot Pizza
 @app.route('/api/scatter_plot_pizzen')
+@cache.cached(timeout=300)
 def scatterplot_data():
     try:
         query = text("""
@@ -546,6 +593,7 @@ def scatterplot_data():
         return jsonify({"error": f"Error fetching data: {str(e)}"}), 500
 
 @app.route('/api/store_orders_per_hour')
+@cache.cached(timeout=300)
 def store_orders_per_hour():
     try:
         query = text("""
@@ -572,6 +620,7 @@ def store_orders_per_hour():
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
 @app.route('/api/revenue_per_weekday')
+@cache.cached(timeout=300)
 def revenue_per_weekday():
     try:
         query = text("""
@@ -591,6 +640,7 @@ def revenue_per_weekday():
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
 @app.route('/api/boxplot_metrics')
+@cache.cached(timeout=300)
 def boxplot_data_metrics():
     try:
         query = text("""
@@ -662,6 +712,7 @@ def calculate_rfm_for_2022_by_store(df):
     return rfm_results
 
 @app.route('/api/rfm_segments')
+@cache.cached(timeout=300)
 def get_rfm_segments():
     try:
         store_id = request.args.get('store_id')
