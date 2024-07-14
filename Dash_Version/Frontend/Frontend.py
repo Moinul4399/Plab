@@ -56,6 +56,7 @@ def create_sales_heatmap(selected_year):
     else:
         return go.Figure()
 
+# Weekyday Bar chart
 def create_weekday_revenue_bar_chart(store_id, selected_year):
     endpoint = "http://localhost:5000/api/revenue_per_weekday"
     data = fetch_data(endpoint)
@@ -99,7 +100,7 @@ def create_weekday_revenue_bar_chart(store_id, selected_year):
         print("No data fetched from API")
         return go.Figure()
 
-
+# Hours bar chart
 def create_hourly_orders_bar_chart(store_id, selected_year):
     url = "http://localhost:5000/api/store_orders_per_hour"
     data = fetch_data(url)
@@ -161,7 +162,18 @@ def create_hourly_orders_bar_chart(store_id, selected_year):
         return go.Figure()
 
     
-
+   
+# für Monthly sales
+def format_sales_value(value):
+    if value >= 1_000_000:
+        return f'{value / 1_000_000:.1f}m'
+    elif value >= 1_000:
+        return f'{value / 1_000:.1f}k'
+    else:
+        return str(value)
+ 
+    
+# monthly sales
 def show_monthly_sales(store_id, year):
     endpoint = f"http://localhost:5000/api/store_monthly_revenues"
     data = fetch_data(endpoint)
@@ -170,11 +182,11 @@ def show_monthly_sales(store_id, year):
         store_data = next((item for item in data['store_monthly_revenues'] if item['storeid'] == store_id), None)
         
         if store_data:
-            year_str = str(year)  # Konvertieren Sie das Jahr in einen String
+            year_str = str(year)
             monthly_sales_data = {
-                month: revenue
+                month: float(revenue)
                 for month, revenue in store_data['monthly_revenues'].items()
-                if month.startswith(year_str)  # Verwenden des String-Werts von year
+                if month.startswith(year_str)
             }
             
             if monthly_sales_data:
@@ -182,12 +194,21 @@ def show_monthly_sales(store_id, year):
                 monthly_sales_df['Month'] = pd.to_datetime(monthly_sales_df['Month'] + '-01')
                 monthly_sales_df = monthly_sales_df.set_index('Month').resample('M').sum().reset_index()
                 monthly_sales_df['Month'] = monthly_sales_df['Month'].dt.strftime('%B')
-
-                fig = px.bar(monthly_sales_df, x='Month', y='Sales', title=f'Monthly Sales for Store {store_id} in {year}', labels={'Month': 'Month', 'Sales': 'Sales'})
                 
-                # Update hovertemplate
+                monthly_sales_df['Formatted Sales'] = monthly_sales_df['Sales'].apply(format_sales_value)
+                
+                fig = px.bar(
+                    monthly_sales_df,
+                    x='Month',
+                    y='Sales',
+                    title=f'Monthly Sales for Store {store_id} in {year}',
+                    labels={'Month': 'Month', 'Sales': 'Sales'},
+                    hover_data={'Formatted Sales': True}
+                )
+
                 fig.update_traces(
-                    hovertemplate='<b>Month:</b> %{x}<br><b>Sales:</b> %{y:.1f}k<extra></extra>'
+                    hovertemplate='<b>Month:</b> %{x}<br><b>Sales:</b> %{customdata[0]}<extra></extra>',
+                    customdata=monthly_sales_df[['Formatted Sales']].values
                 )
 
                 return fig
@@ -197,6 +218,12 @@ def show_monthly_sales(store_id, year):
             return go.Figure()
     else:
         return go.Figure()
+
+
+
+
+
+
 
 def create_grouped_bar_chart(store_id):
     endpoint = f"http://localhost:5000/api/store_yearly_avg_orders?store_id={store_id}"
@@ -220,7 +247,7 @@ def create_grouped_bar_chart(store_id):
 
         fig.update_layout(
             barmode='group',
-            title='Customer Reorder Comparison'f'Monthly Sales for Store {store_id}',
+            title=f'Customer Reorder Comparison for Store {store_id}',
             xaxis_title='Year',
             yaxis_title='Repeat Purchases',
             xaxis=dict(type='category')
@@ -230,6 +257,10 @@ def create_grouped_bar_chart(store_id):
     else:
         return go.Figure()
 
+
+
+
+# Format for Revenue Scatter
 def format_revenue(value):
     value = float(value)  # Ensure the value is a float
     if value >= 1e6:
