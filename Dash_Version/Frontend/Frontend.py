@@ -56,33 +56,39 @@ def create_sales_heatmap(selected_year):
     else:
         return go.Figure()
 
-#Weekday Revenue chart
-def create_weekday_revenue_bar_chart(store_id):
+def create_weekday_revenue_bar_chart(store_id, selected_year):
     endpoint = "http://localhost:5000/api/revenue_per_weekday"
     data = fetch_data(endpoint)
     
     if data:
         revenue_data = data.get('revenue_per_weekday', [])
         if not revenue_data:
+            print("No revenue data available")
             return go.Figure()
 
         df = pd.DataFrame(revenue_data)
 
+        # Stellen Sie sicher, dass die Daten korrekt in numerische Werte umgewandelt werden
         df['order_day_of_week'] = pd.to_numeric(df['order_day_of_week'])
         df['total_revenue'] = pd.to_numeric(df['total_revenue'])
+        df['order_year'] = pd.to_numeric(df['order_year'])
 
-        df = df[df['storeid'] == store_id]
+        # Filtern der Daten für das ausgewählte Jahr und den Store
+        df = df[(df['storeid'] == store_id) & (df['order_year'] == int(selected_year))]
 
         if df.empty:
+            print(f"No data for store {store_id} in year {selected_year}")
             return go.Figure()
 
+        # Zuordnung der Wochentage
         days_map = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'}
         df['Day'] = df['order_day_of_week'].map(days_map)
 
         ordered_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         df['Day'] = pd.Categorical(df['Day'], categories=ordered_days, ordered=True)
 
-        fig = px.bar(df, x='Day', y='total_revenue', title=f'Weekly Revenue for Store {store_id}', labels={'Day': 'Day of the Week', 'total_revenue': 'Total Revenue'})
+        # Erstellen des Balkendiagramms
+        fig = px.bar(df, x='Day', y='total_revenue', title=f'Weekly Revenue for Store {store_id} in {selected_year}', labels={'Day': 'Day of the Week', 'total_revenue': 'Total Revenue'})
 
         fig.update_traces(
             hovertemplate='<b>Day:</b> %{x}<br><b>Revenue:</b> %{y:$,.0f}<extra></extra>'
@@ -90,19 +96,22 @@ def create_weekday_revenue_bar_chart(store_id):
         
         return fig
     else:
+        print("No data fetched from API")
         return go.Figure()
 
 
-def create_hourly_orders_bar_chart(store_id):
+def create_hourly_orders_bar_chart(store_id, selected_year):
     url = "http://localhost:5000/api/store_orders_per_hour"
     data = fetch_data(url)
     
     if data:
         df = pd.DataFrame(data['store_orders_per_hour'])
-        df = df[df['storeid'] == store_id]
+        df['order_year'] = pd.to_numeric(df['order_year'])
+
+        df = df[(df['storeid'] == store_id) & (df['order_year'] == int(selected_year))]
         
         if df.empty:
-            print(f"No data for store {store_id}")
+            print(f"No data for store {store_id} in year {selected_year}")
             return go.Figure()
         
         print("Raw data for the store:")
@@ -127,7 +136,7 @@ def create_hourly_orders_bar_chart(store_id):
         print(grouped_df)
 
         fig = px.bar(grouped_df, x='hour_group', y='total_orders_per_hour', 
-                     title=f'Total Orders per 4-Hour Intervals for Store {store_id}', 
+                     title=f'Total Orders per 4-Hour Intervals for Store {store_id} in {selected_year}', 
                      labels={'hour_group': 'Hour Group:', 'total_orders_per_hour': 'Total Orders'})
         
         # Update the layout to ensure x-axis is treated as category
@@ -152,7 +161,6 @@ def create_hourly_orders_bar_chart(store_id):
         return go.Figure()
 
     
-    
 
 def show_monthly_sales(store_id, year):
     endpoint = f"http://localhost:5000/api/store_monthly_revenues"
@@ -162,10 +170,11 @@ def show_monthly_sales(store_id, year):
         store_data = next((item for item in data['store_monthly_revenues'] if item['storeid'] == store_id), None)
         
         if store_data:
+            year_str = str(year)  # Konvertieren Sie das Jahr in einen String
             monthly_sales_data = {
                 month: revenue
                 for month, revenue in store_data['monthly_revenues'].items()
-                if month.startswith(year)
+                if month.startswith(year_str)  # Verwenden des String-Werts von year
             }
             
             if monthly_sales_data:
@@ -211,7 +220,7 @@ def create_grouped_bar_chart(store_id):
 
         fig.update_layout(
             barmode='group',
-            title='Customer Reorder Comparison',
+            title='Customer Reorder Comparison'f'Monthly Sales for Store {store_id}',
             xaxis_title='Year',
             yaxis_title='Repeat Purchases',
             xaxis=dict(type='category')
@@ -221,16 +230,28 @@ def create_grouped_bar_chart(store_id):
     else:
         return go.Figure()
 
+def format_revenue(value):
+    value = float(value)  # Ensure the value is a float
+    if value >= 1e6:
+        return f"{value/1e6:.1f}m$"
+    elif value >= 1e3:
+        return f"{value/1e3:.1f}k$"
+    else:
+        return f"{value}$"
 
-
-
-# Scatter plot pizza
+# Scatter Plot Pizza
 def create_pizza_scatter_plot():
     url = "http://localhost:5000/api/scatter_plot_pizzen"
     scatter_data = fetch_data(url)
     
     if scatter_data:
         df = pd.DataFrame(scatter_data)
+
+        # Ensure total_revenue is numeric
+        df['total_revenue'] = pd.to_numeric(df['total_revenue'], errors='coerce')
+
+        # Format revenue for hover template
+        df['Formatted Revenue'] = df['total_revenue'].apply(format_revenue)
         
         fig = go.Figure()
         
@@ -266,7 +287,8 @@ def create_pizza_scatter_plot():
                             symbol=markers[list(unique_pizza_sizes).index(pizza_size) % len(markers)]
                         ),
                         name=f'{pizza_name} ({pizza_size})',
-                        hovertemplate=f'<b>Pizza:</b> {pizza_name} ({pizza_size})<br><b>Sold Pizzas:</b> %{{x}}<br><b>Revenue:</b> %{{y:.2f}}M USD<extra></extra>'
+                        hovertemplate=f'<b>Pizza:</b> {pizza_name} ({pizza_size})<br><b>Sold Pizzas:</b> %{{x:.0f}}<br><b>Revenue:</b> %{{customdata[0]}}<extra></extra>',
+                        customdata=df_filtered[['Formatted Revenue']]  # Include formatted revenue in custom data
                     ))
         
         fig.update_layout(
@@ -414,6 +436,15 @@ def create_pizza_donut():
 
 
    # Scatter Plot Revenue
+def format_revenue(value):
+    if value >= 1e6:
+        return f"{value/1e6:.1f}m"
+    elif value >= 1e3:
+        return f"{value/1e3:.1f}k"
+    else:
+        return str(value)
+
+# Scatter Plot Revenue
 def create_scatter_plots():
     scatter_data = fetch_data("http://localhost:5000/api/scatterplot")
     if scatter_data:
@@ -424,7 +455,9 @@ def create_scatter_plots():
         df['Orders'] = pd.to_numeric(df['Orders']).apply(lambda x: round(x))
         df['Revenue'] = pd.to_numeric(df['Revenue']).round(1)
 
-        # Adding custom data directly
+        # Format revenue for hover template
+        df['Formatted Revenue'] = df['Revenue'].apply(format_revenue)
+
         fig = px.scatter(
             df,
             x='Orders',
@@ -435,17 +468,15 @@ def create_scatter_plots():
             trendline_scope='overall',
             trendline_color_override='cyan',
             labels={'Orders': 'Total Orders', 'Revenue': 'Revenue'},
-            hover_data={'Store ID': True},  # Ensure Store ID is included in hover data
-            custom_data=['Store ID']  # Adding custom data directly here
+            hover_data={'Store ID': True, 'Formatted Revenue': True},  # Ensure Store ID is included in hover data
+            custom_data=['Store ID', 'Formatted Revenue']  # Adding custom data directly here
         )
 
         fig.update_traces(
             hovertemplate='<br><b>Store:</b> %{customdata[0]}<br>'
                           '<b>Total Orders:</b> %{x:.0f}<br>'
-                          '<b>Revenue:</b> %{y:.1f}k<extra></extra>'
+                          '<b>Revenue:</b> %{customdata[1]}<extra></extra>'
         )
-
-        fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
 
         fig.update_layout(
             margin={"r":0,"t":30,"l":0,"b":0},
@@ -473,7 +504,7 @@ def create_rfm_scatter_chart(store_id):
                                  size='customer_count', 
                                  color='segment',
                                  hover_data={'segment': True, 'avg_recency': True, 'avg_frequency': True, 'avg_monetary': True, 'customer_count': True},
-                                 title='RFM Segments',
+                                 title='RFM Segments'f'Monthly Sales for Store {store_id}',
                                  labels={'avg_recency': 'Average Recency', 'avg_frequency': 'Average Frequency', 'avg_monetary': 'Average Monetary Value', 'customer_count': 'Number of Customers'})
                 
                 # Update layout for better readability
@@ -529,7 +560,6 @@ def create_aggregated_monetary_table(store_id):
         print(f"Error: Unexpected data format or empty data for store_id={store_id}: {data}")
         return "No data"
 
-
 # Beginn App Layout
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
@@ -554,27 +584,22 @@ app.layout = html.Div([
         dbc.Col(dbc.Card(dbc.CardBody([
             html.H5("New Customers 2022"),
             html.H2(id="new-customers", className="card-title")
-        ])), width=4),
+        ])), width=3),
         dbc.Col(dbc.Card(dbc.CardBody([
             html.H5("Total Revenue 2022"),
             html.H2(id="total-revenue", className="card-title")
-        ])), width=4),
+        ])), width=3),
         dbc.Col(dbc.Card(dbc.CardBody([
             html.H5("Average Revenue for Store 2022"),
             html.H2(id="avg-revenue-per-store", className="card-title")
-        ])), width=4)
+        ])), width=3),
+        dbc.Col(dbc.Card(dbc.CardBody([
+            html.H5("Median for Store 2022"),
+            html.H2(id="median_revenue_from_stores", className="card-title")
+        ])), width=3)
     ]),
     dcc.Tabs([
         dcc.Tab(label='Overview', children=[
-            dbc.Row([
-                dbc.Col(dcc.Graph(id='scatterplot-revenue'), width=12)  # Hier wird der Revenue Scatterplot hinzugefügt
-            ]),
-            dbc.Row([
-                dbc.Col(dcc.Graph(id='pizza-donut'), width=12)  # Hier wird das Donut-Diagramm hinzugefügt
-            ]),
-            dbc.Row([
-                dbc.Col(dcc.Graph(id='pizza-scatterplot'), width=12)  # Hier wird der Pizza Scatterplot hinzugefügt
-            ]),
             dbc.Row([
                 dbc.Col(html.Div([
                     html.H3("Top 5 Stores 2020"),
@@ -602,7 +627,16 @@ app.layout = html.Div([
                     html.H3("Worst 5 Stores 2022"),
                     html.Div(id='worst-stores-2022')
                 ]), width=4)
-            ])
+            ]),
+            dbc.Row([
+                dbc.Col(dcc.Graph(id='scatterplot-revenue'), width=12)  # Hier wird der Revenue Scatterplot hinzugefügt
+            ]),
+            dbc.Row([
+                dbc.Col(dcc.Graph(id='pizza-donut'), width=12)  # Hier wird das Donut-Diagramm hinzugefügt
+            ]),
+            dbc.Row([
+                dbc.Col(dcc.Graph(id='pizza-scatterplot'), width=12)  # Hier wird der Pizza Scatterplot hinzugefügt
+            ]),
         ]),
         dcc.Tab(label='Storeview', children=[
             dbc.Row([
@@ -621,25 +655,20 @@ app.layout = html.Div([
             dbc.Row([
                 dbc.Col(dcc.Graph(id='repeat-order-customer'), width=6),
                 dbc.Col(dcc.Graph(id='rfm-scatter-chart'), width=6)
-    ]),
+            ]),
             dbc.Row([
-            dbc.Col(html.Div(id='aggregated-monetary-table'), width=12)
-    ])
-])
-
+                dbc.Col(html.Div(id='aggregated-monetary-table'), width=12)
+            ])
         ])
     ])
-
-
-
-
-
+])
 
 @app.callback(
     [
         Output('new-customers', 'children'),
         Output('total-revenue', 'children'),
-        Output('avg-revenue-per-store', 'children')
+        Output('avg-revenue-per-store', 'children'),
+        Output('median_revenue_from_stores', 'children')
     ],
     [Input('url', 'pathname')]
 )
@@ -652,13 +681,17 @@ def update_metrics(_):
         total_revenue_change = metrics.get('total_revenue_change', 0.0)
         avg_revenue_per_store_2022 = metrics.get('avg_revenue_per_store_2022', 0.0)
         avg_revenue_per_store_change = metrics.get('avg_revenue_per_store_change', 0.0)
+        median_revenue_per_store = metrics.get('median_revenue_from_stores_2022', 0.0)
+        median_revenue_change = metrics.get('median_revenue_change', 0.0)
 
         return [
             f"{new_customers_2022} ({new_customers_change:.2f}%)",
             f"${total_revenue_2022 / 1e6:,.2f} Mio ({total_revenue_change:.2f}%)",
-            f"${avg_revenue_per_store_2022 / 1e6:,.2f} Mio ({avg_revenue_per_store_change:.2f}%)"
+            f"${avg_revenue_per_store_2022 / 1e6:,.2f} Mio ({avg_revenue_per_store_change:.2f}%)",
+            f"${median_revenue_per_store / 1e6:,.2f} Mio ({median_revenue_change:.2f}%)"
         ]
-    return ["No data", "No data", "No data"]
+    return ["No data", "No data", "No data", "No data"]
+
 
 @app.callback(
     [
@@ -679,13 +712,17 @@ def update_storeview_charts(selected_year, click_data):
 
     selected_store = click_data['points'][0]['customdata'][0] if click_data and 'points' in click_data else None
 
+    # Debugging-Ausgabe
+    print(f"Selected Year: {selected_year}")
+    print(f"Selected Store: {selected_store}")
+
     revenue_map_fig = create_sales_heatmap(selected_year)
     if not selected_store:
         return [revenue_map_fig, go.Figure(), go.Figure(), go.Figure(), go.Figure()]
 
-    weekly_revenue_fig = create_weekday_revenue_bar_chart(selected_store)
-    hourly_orders_fig = create_hourly_orders_bar_chart(selected_store)
-    monthly_revenue_fig = show_monthly_sales(selected_store, str(selected_year))
+    weekly_revenue_fig = create_weekday_revenue_bar_chart(selected_store, selected_year)
+    hourly_orders_fig = create_hourly_orders_bar_chart(selected_store, selected_year)
+    monthly_revenue_fig = show_monthly_sales(selected_store, selected_year)
     repeat_order_fig = create_grouped_bar_chart(selected_store)
     
     return revenue_map_fig, weekly_revenue_fig, hourly_orders_fig, monthly_revenue_fig, repeat_order_fig

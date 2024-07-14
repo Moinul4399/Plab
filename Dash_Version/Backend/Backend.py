@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 app = Flask(__name__)
 
 # Datenbank-Konfiguration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/Database1'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/Database1.1'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
@@ -255,16 +255,23 @@ def get_store_data():
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
 
+# Metriken Anbindung
 @app.route('/api/metrics')
-@cache.cached(timeout=300)
 def get_metrics():
     try:
-        total_customers_query = text("SELECT COUNT(*) FROM customers;")
+        # Total customers query
+        total_customers_query = text("""
+            SELECT COUNT(*) FROM customers;
+        """)
         total_customers_result = db.session.execute(total_customers_query).scalar()
 
-        total_revenue_query = text("SELECT SUM(o.total) FROM orders o;")
+        # Total revenue query
+        total_revenue_query = text("""
+            SELECT SUM(o.total) FROM orders o;
+        """)
         total_revenue_result = db.session.execute(total_revenue_query).scalar()
 
+        # Average revenue per store query
         average_revenue_per_store_query = text("""
             SELECT AVG(total_revenue) FROM (
                 SELECT SUM(o.total) AS total_revenue
@@ -274,30 +281,124 @@ def get_metrics():
         """)
         average_revenue_per_store_result = db.session.execute(average_revenue_per_store_query).scalar()
 
+      # Median revenue from stores in 2022
+        median_revenue_from_stores_query = text("""
+       WITH StoreRevenues AS (
+        SELECT
+            o.storeid,
+            SUM(p.price * o.nitems) AS total_revenue 
+        FROM
+            orders o
+            JOIN orderitems oi ON o.orderid = oi.orderid
+            JOIN products p ON oi.sku = p.sku
+        WHERE
+            EXTRACT(YEAR FROM o.orderdate) = 2022 
+        GROUP BY
+            o.storeid
+    ),
+    RankedRevenues AS (
+        SELECT
+            storeid,
+            total_revenue,
+            ROW_NUMBER() OVER (ORDER BY total_revenue) AS row_num,
+            COUNT(*) OVER () AS total_rows
+        FROM
+            StoreRevenues
+    )
+    SELECT
+        AVG(total_revenue) AS median_revenue
+    FROM
+        RankedRevenues
+    WHERE
+        row_num IN (FLOOR((total_rows + 1) / 2), CEIL((total_rows + 1) / 2));""")
+        median_revenue_from_stores_result = db.session.execute(median_revenue_from_stores_query).scalar()
+
+
+
+        # Neukunden 2021 und 2022 query
         new_customers_query = text("""
             WITH first_orders AS (
-                SELECT customerid, MIN(orderdate) AS first_order_date
-                FROM orders
-                GROUP BY customerid
+                SELECT 
+                    customerid, 
+                    MIN(orderdate) AS first_order_date
+                FROM 
+                    orders
+                GROUP BY 
+                    customerid
+            ),
+            customers_pre_2021 AS (
+                SELECT 
+                    customerid
+                FROM 
+                    first_orders
+                WHERE 
+                    EXTRACT(YEAR FROM first_order_date) < 2021
+            ),
+            customers_2021 AS (
+                SELECT 
+                    customerid
+                FROM 
+                    first_orders
+                WHERE 
+                    EXTRACT(YEAR FROM first_order_date) = 2021
+            ),
+            customers_2022 AS (
+                SELECT 
+                    customerid
+                FROM 
+                    first_orders
+                WHERE 
+                    EXTRACT(YEAR FROM first_order_date) = 2022
+            ),
+            new_customers_2021 AS (
+                SELECT 
+                    COUNT(DISTINCT customers_2021.customerid) AS count
+                FROM 
+                    customers_2021
+                LEFT JOIN 
+                    customers_pre_2021
+                ON 
+                    customers_2021.customerid = customers_pre_2021.customerid
+                WHERE 
+                    customers_pre_2021.customerid IS NULL
+            ),
+            new_customers_2022 AS (
+                SELECT 
+                    COUNT(DISTINCT customers_2022.customerid) AS count
+                FROM 
+                    customers_2022
+                LEFT JOIN 
+                    customers_2021
+                ON 
+                    customers_2022.customerid = customers_2021.customerid
+                WHERE 
+                    customers_2021.customerid IS NULL
             )
-            SELECT
-                COUNT(DISTINCT CASE WHEN EXTRACT(YEAR FROM first_order_date) = 2021 THEN customerid END) AS new_customers_2021,
-                COUNT(DISTINCT CASE WHEN EXTRACT(YEAR FROM first_order_date) = 2022 THEN customerid END) AS new_customers_2022
-            FROM first_orders;
+            SELECT 
+                new_customers_2021.count AS new_customers_2021,
+                new_customers_2022.count AS new_customers_2022
+            FROM 
+                new_customers_2021, new_customers_2022;
         """)
         new_customers_result = db.session.execute(new_customers_query).fetchone()
 
+        # Total revenue per year query
         total_revenue_per_year_query = text("""
             SELECT 
                 EXTRACT(YEAR FROM orderdate) AS year,
                 SUM(total) AS total_revenue
-            FROM orders
-            WHERE EXTRACT(YEAR FROM orderdate) IN (2021, 2022)
-            GROUP BY year
-            ORDER BY year;
+            FROM 
+                orders
+            WHERE 
+                EXTRACT(YEAR FROM orderdate) IN (2021, 2022)
+            GROUP BY 
+                year
+            ORDER BY 
+                year;
         """)
         total_revenue_per_year_result = db.session.execute(total_revenue_per_year_query).fetchall()
 
+        # Average revenue per store per year query
         average_revenue_per_store_per_year_query = text("""
             SELECT EXTRACT(YEAR FROM orderdate) AS Jahr, SUM(total) / 32 AS Durchschnittsumsatz_pro_Store
             FROM orders
@@ -307,15 +408,18 @@ def get_metrics():
         """)
         average_revenue_per_store_per_year_result = db.session.execute(average_revenue_per_store_per_year_query).fetchall()
 
+        # Convert results to float and int
         total_customers = int(total_customers_result)
         total_revenue = float(total_revenue_result)
         average_revenue_per_store = float(average_revenue_per_store_result)
         new_customers_2021 = int(new_customers_result[0])
         new_customers_2022 = int(new_customers_result[1])
+        median_revenue_from_stores = int(median_revenue_from_stores_result)
 
         total_revenue_per_year = {row[0]: float(row[1]) for row in total_revenue_per_year_result}
         average_revenue_per_store_per_year = {row[0]: float(row[1]) for row in average_revenue_per_store_per_year_result}
 
+        # Berechnung der prozentualen Veränderung
         total_revenue_2021 = total_revenue_per_year.get(2021, 1)
         total_revenue_2022 = total_revenue_per_year.get(2022, 1)
         total_revenue_change = (total_revenue_2022 - total_revenue_2021) / total_revenue_2021 * 100
@@ -327,17 +431,19 @@ def get_metrics():
         new_customers_change = (new_customers_2022 - new_customers_2021) / new_customers_2021 * 100 if new_customers_2021 else 0
 
         return jsonify({
-            'total_customers': total_customers,
-            'total_revenue': total_revenue,
-            'average_revenue_per_store': average_revenue_per_store,
-            'new_customers_2021': new_customers_2021,
-            'new_customers_2022': new_customers_2022,
-            'total_revenue_2022': total_revenue_2022,
-            'total_revenue_change': total_revenue_change,
-            'avg_revenue_per_store_2022': avg_revenue_per_store_2022,
-            'avg_revenue_per_store_change': avg_revenue_per_store_change,
-            'new_customers_change': new_customers_change
-        })
+    'total_customers': total_customers,
+    'total_revenue': total_revenue,
+    'average_revenue_per_store': average_revenue_per_store,
+    'median_revenue_from_stores_2022': median_revenue_from_stores,  # Korrekte Schlüssel-Name
+    'new_customers_2021': new_customers_2021,
+    'new_customers_2022': new_customers_2022,
+    'total_revenue_2022': total_revenue_2022,
+    'total_revenue_change': total_revenue_change,
+    'avg_revenue_per_store_2022': avg_revenue_per_store_2022,
+    'avg_revenue_per_store_change': avg_revenue_per_store_change,
+    'new_customers_change': new_customers_change
+})
+
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
@@ -600,24 +706,31 @@ def store_orders_per_hour():
             SELECT
                 storeid,
                 EXTRACT(hour FROM (orderdate AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles')) AS order_hour,
+                EXTRACT(YEAR FROM orderdate) AS order_year,
                 COUNT(*) AS total_orders_per_hour
-            FROM
-                orders
+            FROM orders
+            WHERE EXTRACT(YEAR FROM orderdate) IN (2020, 2021, 2022)
             GROUP BY
-                storeid, EXTRACT(hour FROM (orderdate AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles'))
+                storeid,
+                EXTRACT(hour FROM (orderdate AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles')),
+                EXTRACT(YEAR FROM orderdate)
             ORDER BY
-                storeid, order_hour;
+                storeid,
+                order_year,
+                order_hour;
         """)
         result = db.session.execute(query)
         data = result.fetchall()
         orders_per_hour = [{
             'storeid': row[0],
             'order_hour': row[1],
-            'total_orders_per_hour': row[2]
+            'order_year': row[2],  # Add this line to include order_year
+            'total_orders_per_hour': row[3]
         } for row in data]
         return jsonify({'store_orders_per_hour': orders_per_hour})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
+
 
 @app.route('/api/revenue_per_weekday')
 @cache.cached(timeout=300)
@@ -627,14 +740,16 @@ def revenue_per_weekday():
             SELECT
                 o.storeid,
                 (EXTRACT(DOW FROM o.orderdate) + 6) % 7 AS order_day_of_week,  -- Montag als erster Tag der Woche (0=Montag, 6=Sonntag)
+                EXTRACT(YEAR FROM o.orderdate) AS order_year,
                 SUM(o.total) AS total_revenue
             FROM orders o
-            GROUP BY o.storeid, (EXTRACT(DOW FROM o.orderdate) + 6) % 7
-            ORDER BY o.storeid, order_day_of_week;
+            WHERE EXTRACT(YEAR FROM o.orderdate) IN (2020, 2021, 2022)
+            GROUP BY o.storeid, (EXTRACT(DOW FROM o.orderdate) + 6) % 7, EXTRACT(YEAR FROM o.orderdate)
+            ORDER BY o.storeid, order_year, order_day_of_week;
         """)
         result = db.session.execute(query)
         data = result.fetchall()
-        revenue_data = [{'storeid': row[0], 'order_day_of_week': row[1], 'total_revenue': row[2]} for row in data]
+        revenue_data = [{'storeid': row[0], 'order_day_of_week': row[1], 'order_year': row[2], 'total_revenue': row[3]} for row in data]
         return jsonify({'revenue_per_weekday': revenue_data})
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
