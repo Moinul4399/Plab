@@ -1,3 +1,4 @@
+from dash.dependencies import Input, Output, State
 import dash
 from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
@@ -11,6 +12,38 @@ import itertools
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.config.suppress_callback_exceptions = True
 
+# Custom styles for the sidebar
+sidebar_styles = {
+    'position': 'fixed',
+    'top': 0,
+    'left': 0,
+    'bottom': 0,
+    'width': '200px',
+    'padding': '20px 10px',
+    'background-color': '#f8f9fa'
+}
+
+content_styles = {
+    'margin-left': '210px',  # adjust according to the sidebar width
+    'padding': '20px'
+}
+
+sidebar = html.Div(
+    [
+        html.H2('Tabs', className='display-4'),
+        html.Hr(),
+        dbc.Nav(
+            [
+                dbc.NavLink('Overview', href='/overview', id='overview-link'),
+                dbc.NavLink('Storeview', href='/storeview', id='storeview-link'),
+                dbc.NavLink('Customerview', href='/customerview', id='customerview-link'),
+            ],
+            vertical=True,
+            pills=True,
+        ),
+    ],
+    style=sidebar_styles,
+)
 
 def fetch_data(url):
     try:
@@ -591,46 +624,77 @@ def create_aggregated_monetary_table(store_id):
         print(f"Error: Unexpected data format or empty data for store_id={store_id}: {data}")
         return "No data"
 
-# Beginn App Layout
+
+# Define styles
+tab_styles = {
+    'fontSize': '12px',
+    'padding': '10px',
+    'width': '100%',  # Set the width to fill the sidebar
+    'textAlign': 'center',  # Center the text in each tab
+    'backgroundColor': '#007bff',  # Set the background color to blue
+    'color': 'white',  # Set the text color to white
+    'border': 'none',  # Remove borders
+    'borderRadius': '5px',  # Add rounded corners
+    'margin': '5px 0'  # Add some margin between buttons
+}
+
+selected_tab_styles = {
+    'fontSize': '12px',
+    'padding': '10px',
+    'width': '100%',  # Set the width to fill the sidebar
+    'textAlign': 'center',  # Center the text in each tab
+    'backgroundColor': '#0056b3',  # Set the background color to a darker blue
+    'color': 'white',  # Set the text color to white
+    'border': 'none',  # Remove borders
+    'borderRadius': '5px',  # Add rounded corners
+    'margin': '5px 0'  # Add some margin between buttons
+}
+
+container_styles = {
+    'textAlign': 'center',  # Center the container's content
+    'display': 'flex',  # Use flexbox to align items
+    'flexDirection': 'column',  # Arrange items in a column
+    'justifyContent': 'flex-start',  # Align items to the top
+    'alignItems': 'center'  # Center the items horizontally
+}
+
+# Define the sidebar layout
+sidebar = html.Div(
+    [
+        html.Img(src="assets/CaptainPizza.png", style={"width": "200px"}),
+        html.Hr(),
+        dcc.Dropdown(
+            id='global-year-dropdown',
+            options=[{'label': str(year), 'value': year} for year in range(2018, 2023)],
+            value=2022,
+            clearable=False,
+            style={"width": "100%", "marginBottom": "20px"}  # Add margin bottom to the dropdown
+        ),
+        html.Div(
+            [
+                html.Button("Overview", id="overview-link", n_clicks=0, style=tab_styles),
+                html.Button("Storeview", id="storeview-link", n_clicks=0, style=tab_styles),
+                html.Button("Customerview", id="customerview-link", n_clicks=0, style=tab_styles),
+            ],
+            style=container_styles
+        )
+    ],
+    style={"position": "fixed", "width": "200px", "padding": "20px", "top": 0, "left": 0, "bottom": 0, "backgroundColor": "#f8f9fa"}
+)
+
+content_styles = {
+    "marginLeft": "220px",
+    "padding": "20px"
+}
+
+# Define the app layout
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
-    dbc.Row([
-        dbc.Col(html.Img(src="assets/CaptainPizza.png", style={"width": "200px"}), width=2),
-        dbc.Col(html.H1("Pizzeria Dashboard", className="text-center"), width=8)
-    ]),
-    dbc.Row([
-        dbc.Col(
-            dcc.Dropdown(
-                id='global-year-dropdown',
-                options=[{'label': str(year), 'value': year} for year in range(2018, 2023)],
-                value=2022,
-                clearable=False,
-                style={"width": "200px", "margin": "0 auto"}  # Set width and center it
-            ),
-            width={"size": 2, "offset": 5},  # Center the column in the row
-            style={"textAlign": "center"}  # Center text within the column
-        )
-    ]),
-    dbc.Row([
-        dbc.Col(dbc.Card(dbc.CardBody([
-            html.H5("New Customers 2022"),
-            html.H2(id="new-customers", className="card-title")
-        ])), width=3),
-        dbc.Col(dbc.Card(dbc.CardBody([
-            html.H5("Total Revenue 2022"),
-            html.H2(id="total-revenue", className="card-title")
-        ])), width=3),
-        dbc.Col(dbc.Card(dbc.CardBody([
-            html.H5("Average Revenue for Store 2022"),
-            html.H2(id="avg-revenue-per-store", className="card-title")
-        ])), width=3),
-        dbc.Col(dbc.Card(dbc.CardBody([
-            html.H5("Median for Store 2022"),
-            html.H2(id="median_revenue_from_stores", className="card-title")
-        ])), width=3)
-    ]),
-    dcc.Tabs([
-        dcc.Tab(label='Overview', children=[
+    sidebar,
+    dcc.Store(id='store-data'),
+    dcc.Store(id='selected-store'),
+    html.Div(id='page-content', style=content_styles, children=[
+        html.Div(id='overview', children=[
             dbc.Row([
                 dbc.Col(html.Div([
                     html.H3("Top 5 Stores 2020"),
@@ -669,7 +733,7 @@ app.layout = html.Div([
                 dbc.Col(dcc.Graph(id='pizza-scatterplot'), width=12)  # Hier wird der Pizza Scatterplot hinzugefügt
             ]),
         ]),
-        dcc.Tab(label='Storeview', children=[
+        html.Div(id='storeview', children=[
             dbc.Row([
                 dbc.Col(dcc.Graph(id='revenue-map'), width=12, style={"textAlign": "center"})  # Center the heatmap
             ]),
@@ -682,7 +746,7 @@ app.layout = html.Div([
                 dbc.Col(dcc.Graph(id='repeat-order'), width=6)
             ])
         ]),
-        dcc.Tab(label='Customerview', children=[
+        html.Div(id='customerview', children=[
             dbc.Row([
                 dbc.Col(dcc.Graph(id='repeat-order-customer'), width=6),
                 dbc.Col(dcc.Graph(id='rfm-scatter-chart'), width=6)
@@ -695,34 +759,54 @@ app.layout = html.Div([
 ])
 
 @app.callback(
-    [
-        Output('new-customers', 'children'),
-        Output('total-revenue', 'children'),
-        Output('avg-revenue-per-store', 'children'),
-        Output('median_revenue_from_stores', 'children')
-    ],
-    [Input('url', 'pathname')]
+    Output('page-content', 'children'),
+    [Input('overview-link', 'n_clicks'),
+     Input('storeview-link', 'n_clicks'),
+     Input('customerview-link', 'n_clicks')],
+    [State('page-content', 'children')]
 )
-def update_metrics(_):
-    metrics = fetch_data("http://localhost:5000/api/metrics")
-    if metrics:
-        new_customers_2022 = metrics.get('new_customers_2022', 0)
-        new_customers_change = metrics.get('new_customers_change', 0.0)
-        total_revenue_2022 = metrics.get('total_revenue_2022', 0.0)
-        total_revenue_change = metrics.get('total_revenue_change', 0.0)
-        avg_revenue_per_store_2022 = metrics.get('avg_revenue_per_store_2022', 0.0)
-        avg_revenue_per_store_change = metrics.get('avg_revenue_per_store_change', 0.0)
-        median_revenue_per_store = metrics.get('median_revenue_from_stores_2022', 0.0)
-        median_revenue_change = metrics.get('median_revenue_change', 0.0)
+def display_page(n1, n2, n3, children):
+    ctx = callback_context
+    if not ctx.triggered:
+        return children
 
-        return [
-            f"{new_customers_2022} ({new_customers_change:.2f}%)",
-            f"${total_revenue_2022 / 1e6:,.2f} Mio ({total_revenue_change:.2f}%)",
-            f"${avg_revenue_per_store_2022 / 1e6:,.2f} Mio ({avg_revenue_per_store_change:.2f}%)",
-            f"${median_revenue_per_store / 1e6:,.2f} Mio ({median_revenue_change:.2f}%)"
-        ]
-    return ["No data", "No data", "No data", "No data"]
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
+    for child in children:
+        if child['props']['id'] == 'overview':
+            child['props']['style']['display'] = 'block' if button_id == 'overview-link' else 'none'
+        elif child['props']['id'] == 'storeview':
+            child['props']['style']['display'] = 'block' if button_id == 'storeview-link' else 'none'
+        elif child['props']['id'] == 'customerview':
+            child['props']['style']['display'] = 'block' if button_id == 'customerview-link' else 'none'
+
+    return children
+
+@app.callback(
+    [Output('store-data', 'data'), Output('selected-store', 'data')],
+    [Input('global-year-dropdown', 'value'), Input('revenue-map', 'clickData')],
+    [State('store-data', 'data'), State('selected-store', 'data')]
+)
+def update_store_data(year, clickData, store_data, selected_store):
+    if store_data is None:
+        store_data = {}
+
+    # Update store data based on the selected year and clicked store
+    store_data['revenue-map'] = create_sales_heatmap(year)
+    selected_store = None
+    if clickData and 'points' in clickData:
+        selected_store = clickData['points'][0]['customdata'][0]
+
+    store_data['weekly-revenue-chart'] = create_weekday_revenue_bar_chart(selected_store, year) if selected_store else go.Figure()
+    store_data['hourly-orders-chart'] = create_hourly_orders_bar_chart(selected_store, year) if selected_store else go.Figure()
+    store_data['monthly-revenue'] = show_monthly_sales(selected_store, year) if selected_store else go.Figure()
+    store_data['repeat-order'] = create_grouped_bar_chart(selected_store) if selected_store else go.Figure()
+
+    store_data['repeat-order-customer'] = create_grouped_bar_chart(selected_store) if selected_store else go.Figure()
+    store_data['rfm-scatter-chart'] = create_rfm_scatter_chart(selected_store) if selected_store else go.Figure()
+    store_data['aggregated-monetary-table'] = create_aggregated_monetary_table(selected_store) if selected_store else "No data"
+
+    return store_data, selected_store
 
 @app.callback(
     [
@@ -733,30 +817,20 @@ def update_metrics(_):
         Output('repeat-order', 'figure')
     ],
     [
-        Input('global-year-dropdown', 'value'),
-        Input('revenue-map', 'clickData')
+        Input('store-data', 'data')
     ]
 )
-def update_storeview_charts(selected_year, click_data):
-    if not selected_year:
+def update_storeview_charts(store_data):
+    if not store_data:
         return [go.Figure()] * 5
 
-    selected_store = click_data['points'][0]['customdata'][0] if click_data and 'points' in click_data else None
-
-    # Debugging-Ausgabe
-    print(f"Selected Year: {selected_year}")
-    print(f"Selected Store: {selected_store}")
-
-    revenue_map_fig = create_sales_heatmap(selected_year)
-    if not selected_store:
-        return [revenue_map_fig, go.Figure(), go.Figure(), go.Figure(), go.Figure()]
-
-    weekly_revenue_fig = create_weekday_revenue_bar_chart(selected_store, selected_year)
-    hourly_orders_fig = create_hourly_orders_bar_chart(selected_store, selected_year)
-    monthly_revenue_fig = show_monthly_sales(selected_store, selected_year)
-    repeat_order_fig = create_grouped_bar_chart(selected_store)
-    
-    return revenue_map_fig, weekly_revenue_fig, hourly_orders_fig, monthly_revenue_fig, repeat_order_fig
+    return (
+        store_data.get('revenue-map', go.Figure()),
+        store_data.get('weekly-revenue-chart', go.Figure()),
+        store_data.get('hourly-orders-chart', go.Figure()),
+        store_data.get('monthly-revenue', go.Figure()),
+        store_data.get('repeat-order', go.Figure())
+    )
 
 @app.callback(
     [
@@ -770,7 +844,7 @@ def update_overview_charts(_):
     scatterplot_revenue_fig = create_scatter_plots()
     pizza_donut_fig = create_pizza_donut()
     pizza_scatter_plot_fig = create_pizza_scatter_plot()
-    
+
     return scatterplot_revenue_fig, pizza_donut_fig, pizza_scatter_plot_fig
 
 @app.callback(
@@ -787,15 +861,15 @@ def update_overview_charts(_):
 def update_stores_tables(selected_year):
     store_colors = {}
     color_generator = generate_colors()
-    
+
     top_stores_2020, _ = create_top_stores_table(2020, store_colors, color_generator)
     top_stores_2021, _ = create_top_stores_table(2021, store_colors, color_generator)
     top_stores_2022, _ = create_top_stores_table(2022, store_colors, color_generator)
-    
+
     worst_stores_2020, _ = create_worst_stores_table(2020, store_colors, color_generator)
     worst_stores_2021, _ = create_worst_stores_table(2021, store_colors, color_generator)
     worst_stores_2022, _ = create_worst_stores_table(2022, store_colors, color_generator)
-    
+
     return top_stores_2020, top_stores_2021, top_stores_2022, worst_stores_2020, worst_stores_2021, worst_stores_2022
 
 @app.callback(
@@ -805,23 +879,18 @@ def update_stores_tables(selected_year):
         Output('aggregated-monetary-table', 'children')
     ],
     [
-        Input('revenue-map', 'clickData'),
-        Input('global-year-dropdown', 'value')
+        Input('store-data', 'data')
     ]
 )
-def update_customer_charts(click_data, selected_year):
-    if not click_data or 'points' not in click_data:
+def update_customer_charts(store_data):
+    if not store_data:
         return [go.Figure(), go.Figure(), "No data"]
-    
-    selected_store = click_data['points'][0]['customdata'][0]
-    
-    repeat_order_customer_fig = create_grouped_bar_chart(selected_store)
-    rfm_scatter_fig = create_rfm_scatter_chart(selected_store)
-    aggregated_monetary_table = create_aggregated_monetary_table(selected_store)
-    
-    return repeat_order_customer_fig, rfm_scatter_fig, aggregated_monetary_table
 
-
+    return (
+        store_data.get('repeat-order-customer', go.Figure()),
+        store_data.get('rfm-scatter-chart', go.Figure()),
+        store_data.get('aggregated-monetary-table', "No data")
+    )
 
     
 if __name__ == '__main__':
