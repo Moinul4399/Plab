@@ -587,15 +587,15 @@ def create_aggregated_monetary_table(store_id):
                 
                 # Aggregate the monetary values by segment
                 aggregated_data = df.groupby('segment').agg({'avg_monetary': 'sum'}).reset_index()
-                aggregated_data.columns = ['Segment', 'Total Monetary Value']
+                aggregated_data.columns = ['Segment', 'Average Monetary Value']
                 
                 # Create a table to display segment and total monetary value
                 table = dbc.Table(
                     # Define table header
-                    [html.Thead(html.Tr([html.Th("Segment"), html.Th("Total Monetary Value")]))] +
+                    [html.Thead(html.Tr([html.Th("Segment"), html.Th("Average Monetary Value")]))] +
                     # Define table body
                     [html.Tbody(
-                        [html.Tr([html.Td(aggregated_data.loc[i, 'Segment']), html.Td(f"${aggregated_data.loc[i, 'Total Monetary Value']:,.2f}")]) for i in aggregated_data.index]
+                        [html.Tr([html.Td(aggregated_data.loc[i, 'Segment']), html.Td(f"${aggregated_data.loc[i, 'Average Monetary Value']:,.2f}")]) for i in aggregated_data.index]
                     )],
                     bordered=True,
                     striped=True,
@@ -674,6 +674,7 @@ content_styles = {
     "padding": "20px"
 }
 
+
 # Define the app layout
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
@@ -684,47 +685,47 @@ app.layout = html.Div([
         html.Div(id='overview', children=[
             dbc.Row([
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("New Customers 2022"),
-                    html.H2(id="new-customers-overview", className="card-title")
-                ])), width=3),
+                    html.H5("New Customers 2022", className="text-center"),
+                    html.H2(id="new-customers-overview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Total Revenue 2022"),
-                    html.H2(id="total-revenue-overview", className="card-title")
-                ])), width=3),
+                    html.H5("Total Revenue 2022", className="text-center"),
+                    html.H2(id="total-revenue-overview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Average Revenue for Store 2022"),
-                    html.H2(id="avg-revenue-per-store-overview", className="card-title")
-                ])), width=3),
+                    html.H5("Average Revenue for Store 2022", className="text-center"),
+                    html.H2(id="avg-revenue-per-store-overview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Median for Store 2022"),
-                    html.H2(id="median_revenue_from_stores-overview", className="card-title")
-                ])), width=2)
-            ]),
+                    html.H5("Median for Store 2022", className="text-center"),
+                    html.H2(id="median_revenue_from_stores-overview", className="card-title text-center")
+                ])), width=3, className="mb-4")
+            ], justify="center"),
             dbc.Row([
                 dbc.Col(html.Div([
-                    html.H3("Top 5 Stores 2020"),
+                    html.H3("Top 5 Stores 2020", className="text-center"),
                     html.Div(id='top-stores-2020')
                 ]), width=4),
                 dbc.Col(html.Div([
-                    html.H3("Top 5 Stores 2021"),
+                    html.H3("Top 5 Stores 2021", className="text-center"),
                     html.Div(id='top-stores-2021')
                 ]), width=4),
                 dbc.Col(html.Div([
-                    html.H3("Top 5 Stores 2022"),
+                    html.H3("Top 5 Stores 2022", className="text-center"),
                     html.Div(id='top-stores-2022')
                 ]), width=4)
             ]),
             dbc.Row([
                 dbc.Col(html.Div([
-                    html.H3("Worst 5 Stores 2020"),
+                    html.H3("Worst 5 Stores 2020", className="text-center"),
                     html.Div(id='worst-stores-2020')
                 ]), width=4),
                 dbc.Col(html.Div([
-                    html.H3("Worst 5 Stores 2021"),
+                    html.H3("Worst 5 Stores 2021", className="text-center"),
                     html.Div(id='worst-stores-2021')
                 ]), width=4),
                 dbc.Col(html.Div([
-                    html.H3("Worst 5 Stores 2022"),
+                    html.H3("Worst 5 Stores 2022", className="text-center"),
                     html.Div(id='worst-stores-2022')
                 ]), width=4)
             ]),
@@ -737,29 +738,26 @@ app.layout = html.Div([
             dbc.Row([
                 dbc.Col(dcc.Graph(id='pizza-scatterplot'), width=12)
             ]),
-            # Add metric cards for the overview
-            
         ], style={'display': 'block'}),
         html.Div(id='storeview', children=[
-             # Add metric cards for the storeview
             dbc.Row([
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("New Customers 2022"),
-                    html.H2(id="new-customers-storeview", className="card-title")
-                ])), width=3),
+                    html.H5("New Customers 2022", className="text-center"),
+                    html.H2(id="new-customers-storeview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Total Revenue 2022"),
-                    html.H2(id="total-revenue-storeview", className="card-title")
-                ])), width=3),
+                    html.H5("Total Revenue 2022", className="text-center"),
+                    html.H2(id="total-revenue-storeview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Average Revenue for Store 2022"),
-                    html.H2(id="avg-revenue-per-store-storeview", className="card-title")
-                ])), width=3),
+                    html.H5("Average Revenue for Store 2022", className="text-center"),
+                    html.H2(id="avg-revenue-per-store-storeview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Median for Store 2022"),
-                    html.H2(id="median_revenue_from_stores-storeview", className="card-title")
-                ])), width=3)
-            ]),
+                    html.H5("Median for Store 2022", className="text-center"),
+                    html.H2(id="median_revenue_from_stores-storeview", className="card-title text-center")
+                ])), width=3, className="mb-4")
+            ], justify="center"),
             dbc.Row([
                 dbc.Col(dcc.Graph(id='revenue-map'), width=12, style={"textAlign": "center"})
             ]),
@@ -770,38 +768,37 @@ app.layout = html.Div([
             dbc.Row([
                 dbc.Col(dcc.Graph(id='monthly-revenue'), width=12)
             ]),
-           
         ], style={'display': 'none'}),
         html.Div(id='customerview', children=[
-             dbc.Row([
+            dbc.Row([
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("New Customers 2022"),
-                    html.H2(id="new-customers-customerview", className="card-title")
-                ])), width=3),
+                    html.H5("New Customers 2022", className="text-center"),
+                    html.H2(id="new-customers-customerview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Total Revenue 2022"),
-                    html.H2(id="total-revenue-customerview", className="card-title")
-                ])), width=3),
+                    html.H5("Total Revenue 2022", className="text-center"),
+                    html.H2(id="total-revenue-customerview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Average Revenue for Store 2022"),
-                    html.H2(id="avg-revenue-per-store-customerview", className="card-title")
-                ])), width=3),
+                    html.H5("Average Revenue for Store 2022", className="text-center"),
+                    html.H2(id="avg-revenue-per-store-customerview", className="card-title text-center")
+                ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Median for Store 2022"),
-                    html.H2(id="median_revenue_from_stores-customerview", className="card-title")
-                ])), width=3)
-            ]),
+                    html.H5("Median for Store 2022", className="text-center"),
+                    html.H2(id="median_revenue_from_stores-customerview", className="card-title text-center")
+                ])), width=3, className="mb-4")
+            ], justify="center"),
             dbc.Row([
                 dbc.Col(dcc.Graph(id='rfm-scatter-chart'), width=6),
-                dbc.Col(dcc.Graph(id='repeat-order'), width=6)
+                dbc.Col(html.Div(id='aggregated-monetary-table'), width=6)
             ]),
             dbc.Row([
-                dbc.Col(html.Div(id='aggregated-monetary-table'), width=12)
+                dbc.Col(dcc.Graph(id='repeat-order'), width=12)
             ]),
-
-        ], style={'display': 'none'}),
+        ], style={'display': 'none'})
     ])
 ])
+
 
 
 @app.callback(
