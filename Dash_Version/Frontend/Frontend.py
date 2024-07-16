@@ -253,43 +253,37 @@ def show_monthly_sales(store_id, year):
         return go.Figure()
 
 
-
-
-
-
-
 def create_grouped_bar_chart(store_id):
     endpoint = f"http://localhost:5000/api/store_yearly_avg_orders?store_id={store_id}"
     data = fetch_data(endpoint)
     
     if data:
         df_grouped = pd.DataFrame(data)
-        df_grouped = df_grouped.groupby(['year', 'storeid'])['avg_orders_per_customer'].sum().reset_index()
+        df_grouped = df_grouped.groupby(['year', 'storeid'])['repeat_customers'].sum().reset_index()
         
-        df_grouped['avg_orders_per_customer'] = df_grouped['avg_orders_per_customer'].round().astype(int)
+        df_grouped['repeat_customers'] = df_grouped['repeat_customers'].round().astype(int)
 
         fig = go.Figure()
 
         df_store = df_grouped[df_grouped['storeid'] == store_id]
         fig.add_trace(go.Bar(
             x=df_store['year'],
-            y=df_store['avg_orders_per_customer'],
+            y=df_store['repeat_customers'],
             name=store_id,
-            hovertemplate='<b>Year:</b> %{x}<br><b>Orders:</b> %{y:.1f}k<extra></extra>'
+            hovertemplate='<b>Year:</b> %{x}<br><b>Repeat Customers:</b> %{y}<extra></extra>'
         ))
 
         fig.update_layout(
             barmode='group',
             title=f'Customer Reorder Comparison for Store {store_id}',
             xaxis_title='Year',
-            yaxis_title='Repeat Purchases',
+            yaxis_title='Repeat Costumers',
             xaxis=dict(type='category')
         )
 
         return fig
     else:
         return go.Figure()
-
 
 
 
@@ -344,6 +338,8 @@ def create_pizza_scatter_plot():
                     fig.add_trace(go.Scatter(
                         x=df_filtered['total_sold'],
                         y=df_filtered['total_revenue'],
+
+
                         mode='markers',
                         marker=dict(
                             size=10,
@@ -369,10 +365,6 @@ def create_pizza_scatter_plot():
     else:
         return go.Figure()
 
-
-
-
-
 # Funktion zur Generierung von Farben
 def generate_colors():
     colors = itertools.cycle(['#FFDDC1', '#FFABAB', '#FFC3A0', '#FF677D', '#D4A5A5', '#392F5A', '#31A2AC', '#61C0BF'])
@@ -395,9 +387,7 @@ def create_top_stores_table(year, store_colors, color_generator):
     top_stores_data = fetch_data(f"http://localhost:5000/api/top_5_stores")
     
     if top_stores_data:
-        print(f"Data for top stores: {top_stores_data}")  # Debugging-Ausgabe
         data = [store for store in top_stores_data['top_5_stores'] if store['year'] == year]  # Filter nach Jahr
-        print(f"Filtered data for year {year}: {data}")  # Debugging-Ausgabe
         if data:
             df = pd.DataFrame(data)
             df['annual_sales'] = pd.to_numeric(df['annual_sales'], errors='coerce')  # Sicherstellen, dass annual_sales numerisch ist
@@ -422,15 +412,12 @@ def create_top_stores_table(year, store_colors, color_generator):
             return table, styles
     return html.Div("No data available"), []
 
-
 # Table Worst 5 Stores
 def create_worst_stores_table(year, store_colors, color_generator):
     worst_stores_data = fetch_data(f"http://localhost:5000/api/worst_5_stores")
     
     if worst_stores_data:
-        print(f"Data for worst stores: {worst_stores_data}")  # Debugging-Ausgabe
         data = [store for store in worst_stores_data['worst_5_stores'] if store['year'] == year]  # Filter nach Jahr
-        print(f"Filtered data for year {year}: {data}")  # Debugging-Ausgabe
         if data:
             df = pd.DataFrame(data)
             df['annual_sales'] = pd.to_numeric(df['annual_sales'], errors='coerce')  # Sicherstellen, dass annual_sales numerisch ist
