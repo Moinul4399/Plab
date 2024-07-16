@@ -683,6 +683,24 @@ app.layout = html.Div([
     html.Div(id='page-content', style=content_styles, children=[
         html.Div(id='overview', children=[
             dbc.Row([
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("New Customers 2022"),
+                    html.H2(id="new-customers-overview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Total Revenue 2022"),
+                    html.H2(id="total-revenue-overview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Average Revenue for Store 2022"),
+                    html.H2(id="avg-revenue-per-store-overview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Median for Store 2022"),
+                    html.H2(id="median_revenue_from_stores-overview", className="card-title")
+                ])), width=2)
+            ]),
+            dbc.Row([
                 dbc.Col(html.Div([
                     html.H3("Top 5 Stores 2020"),
                     html.Div(id='top-stores-2020')
@@ -719,8 +737,29 @@ app.layout = html.Div([
             dbc.Row([
                 dbc.Col(dcc.Graph(id='pizza-scatterplot'), width=12)
             ]),
+            # Add metric cards for the overview
+            
         ], style={'display': 'block'}),
         html.Div(id='storeview', children=[
+             # Add metric cards for the storeview
+            dbc.Row([
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("New Customers 2022"),
+                    html.H2(id="new-customers-storeview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Total Revenue 2022"),
+                    html.H2(id="total-revenue-storeview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Average Revenue for Store 2022"),
+                    html.H2(id="avg-revenue-per-store-storeview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Median for Store 2022"),
+                    html.H2(id="median_revenue_from_stores-storeview", className="card-title")
+                ])), width=3)
+            ]),
             dbc.Row([
                 dbc.Col(dcc.Graph(id='revenue-map'), width=12, style={"textAlign": "center"})
             ]),
@@ -730,19 +769,79 @@ app.layout = html.Div([
             ]),
             dbc.Row([
                 dbc.Col(dcc.Graph(id='monthly-revenue'), width=12)
-            ])
+            ]),
+           
         ], style={'display': 'none'}),
         html.Div(id='customerview', children=[
+             dbc.Row([
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("New Customers 2022"),
+                    html.H2(id="new-customers-customerview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Total Revenue 2022"),
+                    html.H2(id="total-revenue-customerview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Average Revenue for Store 2022"),
+                    html.H2(id="avg-revenue-per-store-customerview", className="card-title")
+                ])), width=3),
+                dbc.Col(dbc.Card(dbc.CardBody([
+                    html.H5("Median for Store 2022"),
+                    html.H2(id="median_revenue_from_stores-customerview", className="card-title")
+                ])), width=3)
+            ]),
             dbc.Row([
                 dbc.Col(dcc.Graph(id='rfm-scatter-chart'), width=6),
                 dbc.Col(dcc.Graph(id='repeat-order'), width=6)
             ]),
             dbc.Row([
                 dbc.Col(html.Div(id='aggregated-monetary-table'), width=12)
-            ])
+            ]),
+
         ], style={'display': 'none'}),
     ])
 ])
+
+
+@app.callback(
+    [
+        Output('new-customers-overview', 'children'),
+        Output('total-revenue-overview', 'children'),
+        Output('avg-revenue-per-store-overview', 'children'),
+        Output('median_revenue_from_stores-overview', 'children'),
+        Output('new-customers-storeview', 'children'),
+        Output('total-revenue-storeview', 'children'),
+        Output('avg-revenue-per-store-storeview', 'children'),
+        Output('median_revenue_from_stores-storeview', 'children'),
+        Output('new-customers-customerview', 'children'),
+        Output('total-revenue-customerview', 'children'),
+        Output('avg-revenue-per-store-customerview', 'children'),
+        Output('median_revenue_from_stores-customerview', 'children')
+    ],
+    [Input('url', 'pathname')]
+)
+def update_metrics(_):
+    metrics = fetch_data("http://localhost:5000/api/metrics")
+    if metrics:
+        new_customers_2022 = metrics.get('new_customers_2022', 0)
+        new_customers_change = metrics.get('new_customers_change', 0.0)
+        total_revenue_2022 = metrics.get('total_revenue_2022', 0.0)
+        total_revenue_change = metrics.get('total_revenue_change', 0.0)
+        avg_revenue_per_store_2022 = metrics.get('avg_revenue_per_store_2022', 0.0)
+        avg_revenue_per_store_change = metrics.get('avg_revenue_per_store_change', 0.0)
+        median_revenue_per_store = metrics.get('median_revenue_from_stores_2022', 0.0)
+        median_revenue_change = metrics.get('median_revenue_change', 0.0)
+
+        metrics_values = [
+            f"{new_customers_2022} ({new_customers_change:.2f}%)",
+            f"${total_revenue_2022 / 1e6:,.2f} Mio ({total_revenue_change:.2f}%)",
+            f"${avg_revenue_per_store_2022 / 1e6:,.2f} Mio ({avg_revenue_per_store_change:.2f}%)",
+            f"${median_revenue_per_store / 1e6:,.2f} Mio"
+        ]
+
+        return metrics_values * 3
+    return ["No data"] * 12
 
 @app.callback(
     Output('page-content', 'children'),
@@ -777,7 +876,6 @@ def update_store_data(year, clickData, store_data, selected_store):
     if store_data is None:
         store_data = {}
 
-    # Update store data based on the selected year and clicked store
     store_data['revenue-map'] = create_sales_heatmap(year)
     selected_store = None
     if clickData and 'points' in clickData:
@@ -886,6 +984,8 @@ def update_customer_charts(click_data, selected_year):
     aggregated_monetary_table = create_aggregated_monetary_table(selected_store)
     
     return repeat_order_fig, rfm_scatter_fig, aggregated_monetary_table
+
+
 
     
 if __name__ == '__main__':

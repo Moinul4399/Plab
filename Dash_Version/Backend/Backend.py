@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 app = Flask(__name__)
 
 # Datenbank-Konfiguration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/Database1'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/Database1.1'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
