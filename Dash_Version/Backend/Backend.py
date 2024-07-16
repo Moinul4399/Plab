@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 app = Flask(__name__)
 
 # Datenbank-Konfiguration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/Database1.1'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:database123!@localhost/Database1'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
@@ -631,33 +631,48 @@ def revenues_by_pizza_type():
     except Exception as e:
         return jsonify({'error': f"Fehler beim Abrufen der Daten: {e}"})
 
-
 @app.route('/api/store_yearly_avg_orders')
 @cache.cached(timeout=300)
 def store_yearly_avg_orders():
     try:
-        query = text("""
+        store_id = request.args.get('store_id')
+
+        query = text(f"""
+            WITH repeat_customers AS (
+                SELECT 
+                    o.storeid,
+                    o.customerid, 
+                    EXTRACT(YEAR FROM o.orderdate) AS order_year,
+                    COUNT(o.orderid) AS total_orders
+                FROM orders o
+                WHERE o.storeid = :store_id
+                GROUP BY o.storeid, o.customerid, EXTRACT(YEAR FROM o.orderdate)
+                HAVING COUNT(o.orderid) > 1
+            )
             SELECT
                 s.storeid,
-                s.city, 
-                EXTRACT(YEAR FROM o.orderdate) AS order_year,
-                ROUND(COUNT(DISTINCT o.orderid)::numeric / COUNT(DISTINCT o.customerid)::numeric, 2) AS avg_orders_per_customer
+                s.city,
+                r.order_year,
+                COUNT(DISTINCT r.customerid) AS repeat_customers
             FROM stores s
-            JOIN orders o ON s.storeid = o.storeid
-            GROUP BY s.storeid, s.city, EXTRACT(YEAR FROM o.orderdate);
+            JOIN repeat_customers r ON s.storeid = r.storeid
+            WHERE s.storeid = :store_id
+            GROUP BY s.storeid, s.city, r.order_year
+            ORDER BY r.order_year;
         """)
-        result = db.session.execute(query)
+
+        result = db.session.execute(query, {'store_id': store_id})
         store_data = []
         for row in result:
             storeid = row[0]
             city = row[1]
             year = int(row[2])
-            avg_orders = float(row[3])
+            repeat_customers = int(row[3])
             store_data.append({
                 'storeid': storeid,
                 'city': city,
                 'year': year,
-                'avg_orders_per_customer': avg_orders
+                'repeat_customers': repeat_customers
             })
         return jsonify(store_data)
     except Exception as e:
