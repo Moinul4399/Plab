@@ -555,7 +555,7 @@ def create_rfm_scatter_chart(store_id):
                                  size='customer_count', 
                                  color='segment',
                                  hover_data={'segment': True, 'avg_recency': True, 'avg_frequency': True, 'avg_monetary': True, 'customer_count': True},
-                                 title='RFM Segments'f'Monthly Sales for Store {store_id}',
+                                 title='RFM Segments for 'f'{store_id}',
                                  labels={'avg_recency': 'Average Recency', 'avg_frequency': 'Average Frequency', 'avg_monetary': 'Average Monetary Value', 'customer_count': 'Number of Customers'})
                 
                 # Update layout for better readability
@@ -890,3 +890,4 @@ def update_customer_charts(click_data, selected_year):
     
 if __name__ == '__main__':
     app.run_server(debug=True)
+    
