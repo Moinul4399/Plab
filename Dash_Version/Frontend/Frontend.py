@@ -530,6 +530,7 @@ def create_scatter_plots():
         )
 
         fig.update_layout(
+            title='Revenue by orders of stores',
             margin={"r":0,"t":30,"l":0,"b":0},
             xaxis_tickformat='~s',  # Use ~s to format large numbers with k and M suffixes
             yaxis_tickformat='~s'
@@ -685,20 +686,20 @@ app.layout = html.Div([
         html.Div(id='overview', children=[
             dbc.Row([
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("New Customers 2022", className="text-center"),
-                    html.H2(id="new-customers-overview", className="card-title text-center")
+                    html.H6("New Customers 2022", className="text-center"),
+                    html.H4(id="new-customers-overview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Total Revenue 2022", className="text-center"),
-                    html.H2(id="total-revenue-overview", className="card-title text-center")
+                    html.H6("Total Revenue 2022", className="text-center"),
+                    html.H4(id="total-revenue-overview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Average Revenue for Store 2022", className="text-center"),
-                    html.H2(id="avg-revenue-per-store-overview", className="card-title text-center")
+                    html.H6("Average Revenue for Store 2022", className="text-center"),
+                    html.H4(id="avg-revenue-per-store-overview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Median for Store 2022", className="text-center"),
-                    html.H2(id="median_revenue_from_stores-overview", className="card-title text-center")
+                    html.H6("Median for Store 2022", className="text-center"),
+                    html.H4(id="median_revenue_from_stores-overview", className="card-title text-center")
                 ])), width=3, className="mb-4")
             ], justify="center"),
             dbc.Row([
@@ -742,20 +743,20 @@ app.layout = html.Div([
         html.Div(id='storeview', children=[
             dbc.Row([
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("New Customers 2022", className="text-center"),
-                    html.H2(id="new-customers-storeview", className="card-title text-center")
+                    html.H6("New Customers 2022", className="text-center"),
+                    html.H4(id="new-customers-storeview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Total Revenue 2022", className="text-center"),
-                    html.H2(id="total-revenue-storeview", className="card-title text-center")
+                    html.H6("Total Revenue 2022", className="text-center"),
+                    html.H4(id="total-revenue-storeview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Average Revenue for Store 2022", className="text-center"),
-                    html.H2(id="avg-revenue-per-store-storeview", className="card-title text-center")
+                    html.H6("Average Revenue for Store 2022", className="text-center"),
+                    html.H4(id="avg-revenue-per-store-storeview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Median for Store 2022", className="text-center"),
-                    html.H2(id="median_revenue_from_stores-storeview", className="card-title text-center")
+                    html.H6("Median for Store 2022", className="text-center"),
+                    html.H4(id="median_revenue_from_stores-storeview", className="card-title text-center")
                 ])), width=3, className="mb-4")
             ], justify="center"),
             dbc.Row([
@@ -772,20 +773,20 @@ app.layout = html.Div([
         html.Div(id='customerview', children=[
             dbc.Row([
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("New Customers 2022", className="text-center"),
-                    html.H2(id="new-customers-customerview", className="card-title text-center")
+                    html.H6("New Customers 2022", className="text-center"),
+                    html.H4(id="new-customers-customerview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Total Revenue 2022", className="text-center"),
-                    html.H2(id="total-revenue-customerview", className="card-title text-center")
+                    html.H6("Total Revenue 2022", className="text-center"),
+                    html.H4(id="total-revenue-customerview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Average Revenue for Store 2022", className="text-center"),
-                    html.H2(id="avg-revenue-per-store-customerview", className="card-title text-center")
+                    html.H6("Average Revenue for Store 2022", className="text-center"),
+                    html.H4(id="avg-revenue-per-store-customerview", className="card-title text-center")
                 ])), width=3, className="mb-4"),
                 dbc.Col(dbc.Card(dbc.CardBody([
-                    html.H5("Median for Store 2022", className="text-center"),
-                    html.H2(id="median_revenue_from_stores-customerview", className="card-title text-center")
+                    html.H6("Median for Store 2022", className="text-center"),
+                    html.H4(id="median_revenue_from_stores-customerview", className="card-title text-center")
                 ])), width=3, className="mb-4")
             ], justify="center"),
             dbc.Row([
