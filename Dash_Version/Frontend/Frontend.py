@@ -54,7 +54,7 @@ def fetch_data(url):
     except requests.RequestException as e:
         return None
 
-# Funktion zum Erstellen der Sales Heatmap
+# Function for creating the Sales Map
 def create_sales_heatmap(selected_year):
     revenue_data = fetch_data(f"http://localhost:5000/api/store_annual_revenues")
     if revenue_data:
@@ -102,26 +102,22 @@ def create_weekday_revenue_bar_chart(store_id, selected_year):
 
         df = pd.DataFrame(revenue_data)
 
-        # Stellen Sie sicher, dass die Daten korrekt in numerische Werte umgewandelt werden
         df['order_day_of_week'] = pd.to_numeric(df['order_day_of_week'])
         df['total_revenue'] = pd.to_numeric(df['total_revenue'])
         df['order_year'] = pd.to_numeric(df['order_year'])
 
-        # Filtern der Daten für das ausgewählte Jahr und den Store
         df = df[(df['storeid'] == store_id) & (df['order_year'] == int(selected_year))]
 
         if df.empty:
             print(f"No data for store {store_id} in year {selected_year}")
             return go.Figure()
 
-        # Zuordnung der Wochentage
         days_map = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'}
         df['Day'] = df['order_day_of_week'].map(days_map)
 
         ordered_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         df['Day'] = pd.Categorical(df['Day'], categories=ordered_days, ordered=True)
 
-        # Erstellen des Balkendiagramms
         fig = px.bar(df, x='Day', y='total_revenue', title=f'Weekly Revenue for Store {store_id} in {selected_year}', labels={'Day': 'Day of the Week', 'total_revenue': 'Total Revenue'})
 
         fig.update_traces(
@@ -157,7 +153,6 @@ def create_hourly_orders_bar_chart(store_id, selected_year):
         bins = [0, 4, 8, 12, 16, 20, 24]
         labels = ['00-04', '04-08', '08-12', '12-16', '16-20', '20-24']
         
-        # Ensure the order_hour values within the bins
         df['hour_group'] = pd.cut(df['order_hour'], bins=bins, labels=labels, right=False, include_lowest=True)
 
         print("Data with hour groups:")
@@ -173,7 +168,6 @@ def create_hourly_orders_bar_chart(store_id, selected_year):
                      title=f'Total Orders per 4-Hour Intervals for Store {store_id} in {selected_year}', 
                      labels={'hour_group': 'Hour Group:', 'total_orders_per_hour': 'Total Orders'})
         
-        # Update the layout to ensure x-axis is treated as category
         fig.update_layout(
             xaxis=dict(
                 type='category',
@@ -184,7 +178,6 @@ def create_hourly_orders_bar_chart(store_id, selected_year):
             )
         )
 
-        # Update the hovertemplate
         fig.update_traces(
             hovertemplate='<b>Hour Group:</b> %{x}<br><b>Total Orders:</b> %{y:.1f}<extra></extra>'
         )
@@ -196,7 +189,7 @@ def create_hourly_orders_bar_chart(store_id, selected_year):
 
     
    
-# für Monthly sales
+# Formate for Monthly sales
 def format_sales_value(value):
     if value >= 1_000_000:
         return f'{value / 1_000_000:.1f}m'
@@ -252,7 +245,7 @@ def show_monthly_sales(store_id, year):
     else:
         return go.Figure()
 
-
+#Repeat Customer order bar chart
 def create_grouped_bar_chart(store_id):
     endpoint = f"http://localhost:5000/api/store_yearly_avg_orders?store_id={store_id}"
     data = fetch_data(endpoint)
@@ -305,10 +298,8 @@ def create_pizza_scatter_plot():
     if scatter_data:
         df = pd.DataFrame(scatter_data)
 
-        # Ensure total_revenue is numeric
         df['total_revenue'] = pd.to_numeric(df['total_revenue'], errors='coerce')
 
-        # Format revenue for hover template
         df['Formatted Revenue'] = df['total_revenue'].apply(format_revenue)
         
         fig = go.Figure()
@@ -357,21 +348,20 @@ def create_pizza_scatter_plot():
             yaxis_title='Total Revenue (USD)',
             legend_title='Pizza (Size)',
             showlegend=True,
-            xaxis_tickformat='~s',  # Format for large numbers with k and M suffixes on x-axis
-            yaxis_tickformat='~s'   # Format for large numbers with k and M suffixes on y-axis
+            xaxis_tickformat='~s',  
+            yaxis_tickformat='~s'   
         )
         
         return fig
     else:
         return go.Figure()
 
-# Funktion zur Generierung von Farben
+
 def generate_colors():
     colors = itertools.cycle(['#FFDDC1', '#FFABAB', '#FFC3A0', '#FF677D', '#D4A5A5', '#392F5A', '#31A2AC', '#61C0BF'])
     while True:
         yield next(colors)
 
-# Funktion zur Hervorhebung der Zeilen
 def highlight_rows(df, store_colors):
     styles = []
     for i, row in df.iterrows():
@@ -486,7 +476,7 @@ def create_pizza_donut():
         return go.Figure()
 
 
-   # Scatter Plot Revenue
+   # Format for Scatter Plot Revenue
 def format_revenue(value):
     if value >= 1e6:
         return f"{value/1e6:.1f}m"
@@ -540,6 +530,7 @@ def create_scatter_plots():
     else:
         return go.Figure()
 
+#rfm-Segment
 def create_rfm_scatter_chart(store_id):
     url = f"http://localhost:5000/api/rfm_segments?store_id={store_id}"
     data = fetch_data(url)
@@ -549,7 +540,6 @@ def create_rfm_scatter_chart(store_id):
             if store["storeid"] == store_id:
                 df = pd.DataFrame(store["rfm_data"])
                 
-                # Create a scatter plot with segment information
                 fig = px.scatter(df, 
                                  x='avg_recency', 
                                  y='avg_frequency', 
@@ -559,7 +549,6 @@ def create_rfm_scatter_chart(store_id):
                                  title='RFM Segments for 'f'{store_id}',
                                  labels={'avg_recency': 'Average Recency', 'avg_frequency': 'Average Frequency', 'avg_monetary': 'Average Monetary Value', 'customer_count': 'Number of Customers'})
                 
-                # Update layout for better readability
                 fig.update_layout(
                     xaxis_title='Average Recency',
                     yaxis_title='Average Frequency',
@@ -576,7 +565,7 @@ def create_rfm_scatter_chart(store_id):
         print(f"Error: Unexpected data format or empty data for store_id={store_id}: {data}")
         return go.Figure()
 
-
+#Monetary Table for rfm
 def create_aggregated_monetary_table(store_id):
     url = f"http://localhost:5000/api/rfm_segments?store_id={store_id}"
     data = fetch_data(url)
@@ -586,15 +575,11 @@ def create_aggregated_monetary_table(store_id):
             if store["storeid"] == store_id:
                 df = pd.DataFrame(store["rfm_data"])
                 
-                # Aggregate the monetary values by segment
                 aggregated_data = df.groupby('segment').agg({'avg_monetary': 'sum'}).reset_index()
                 aggregated_data.columns = ['Segment', 'Average Monetary Value']
                 
-                # Create a table to display segment and total monetary value
                 table = dbc.Table(
-                    # Define table header
                     [html.Thead(html.Tr([html.Th("Segment"), html.Th("Average Monetary Value")]))] +
-                    # Define table body
                     [html.Tbody(
                         [html.Tr([html.Td(aggregated_data.loc[i, 'Segment']), html.Td(f"${aggregated_data.loc[i, 'Average Monetary Value']:,.2f}")]) for i in aggregated_data.index]
                     )],
@@ -613,37 +598,36 @@ def create_aggregated_monetary_table(store_id):
         return "No data"
 
 
-# Define styles
 tab_styles = {
     'fontSize': '12px',
     'padding': '10px',
-    'width': '100%',  # Set the width to fill the sidebar
-    'textAlign': 'center',  # Center the text in each tab
-    'backgroundColor': '#007bff',  # Set the background color to blue
-    'color': 'white',  # Set the text color to white
-    'border': 'none',  # Remove borders
-    'borderRadius': '5px',  # Add rounded corners
-    'margin': '5px 0'  # Add some margin between buttons
+    'width': '100%',  
+    'textAlign': 'center', 
+    'backgroundColor': '#007bff',  
+    'color': 'white',  
+    'border': 'none',  
+    'borderRadius': '5px',  
+    'margin': '5px 0' 
 }
 
 selected_tab_styles = {
     'fontSize': '12px',
     'padding': '10px',
-    'width': '100%',  # Set the width to fill the sidebar
-    'textAlign': 'center',  # Center the text in each tab
-    'backgroundColor': '#0056b3',  # Set the background color to a darker blue
-    'color': 'white',  # Set the text color to white
-    'border': 'none',  # Remove borders
-    'borderRadius': '5px',  # Add rounded corners
-    'margin': '5px 0'  # Add some margin between buttons
+    'width': '100%', 
+    'textAlign': 'center',  
+    'backgroundColor': '#0056b3',  
+    'color': 'white',  
+    'border': 'none', 
+    'borderRadius': '5px',  
+    'margin': '5px 0'  
 }
 
 container_styles = {
-    'textAlign': 'center',  # Center the container's content
-    'display': 'flex',  # Use flexbox to align items
-    'flexDirection': 'column',  # Arrange items in a column
-    'justifyContent': 'flex-start',  # Align items to the top
-    'alignItems': 'center'  # Center the items horizontally
+    'textAlign': 'center',  
+    'display': 'flex',  
+    'flexDirection': 'column',  
+    'justifyContent': 'flex-start',  
+    'alignItems': 'center'  
 }
 
 # Define the sidebar layout
@@ -906,9 +890,6 @@ def update_storeview_charts(selected_year, click_data):
 
     selected_store = click_data['points'][0]['customdata'][0] if click_data and 'points' in click_data else None
 
-    # Debugging-Ausgabe
-    print(f"Selected Year: {selected_year}")
-    print(f"Selected Store: {selected_store}")
 
     revenue_map_fig = create_sales_heatmap(selected_year)
     if not selected_store:
