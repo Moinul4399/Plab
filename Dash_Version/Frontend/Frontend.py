@@ -282,7 +282,7 @@ def create_grouped_bar_chart(store_id):
 
 # Format for Revenue Scatter
 def format_revenue(value):
-    value = float(value)  # Ensure the value is a float
+    value = float(value)  
     if value >= 1e6:
         return f"{value/1e6:.1f}m$"
     elif value >= 1e3:
@@ -377,25 +377,25 @@ def create_top_stores_table(year, store_colors, color_generator):
     top_stores_data = fetch_data(f"http://localhost:5000/api/top_5_stores")
     
     if top_stores_data:
-        data = [store for store in top_stores_data['top_5_stores'] if store['year'] == year]  # Filter nach Jahr
+        data = [store for store in top_stores_data['top_5_stores'] if store['year'] == year] 
         if data:
             df = pd.DataFrame(data)
-            df['annual_sales'] = pd.to_numeric(df['annual_sales'], errors='coerce')  # Sicherstellen, dass annual_sales numerisch ist
-            df = df.sort_values(by='annual_sales', ascending=False).head(5)  # Absteigend sortieren und Top 5 auswählen
-            df = df[['storeid', 'annual_sales']]  # Spalten in der gewünschten Reihenfolge anordnen
-            df.columns = ['Store', 'Revenue in USD']  # Spalten umbenennen
+            df['annual_sales'] = pd.to_numeric(df['annual_sales'], errors='coerce')  
+            df = df.sort_values(by='annual_sales', ascending=False).head(5)  
+            df = df[['storeid', 'annual_sales']] 
+            df.columns = ['Store', 'Revenue in USD'] 
             
-            # Formatierung der Zahlen
+           
             df['Revenue in USD'] = df['Revenue in USD'].apply(lambda x: f"${x:,.2f}")
             
-            # Farben für sich wiederholende Stores zuweisen
+           
             store_counts = df['Store'].value_counts()
             repeating_stores = store_counts[store_counts > 1].index
             for store_id in df['Store']:
                 if store_id in repeating_stores and store_id not in store_colors:
                     store_colors[store_id] = next(color_generator)
             
-            # Zeilenhervorhebung basierend auf Farben
+            
             styles = highlight_rows(df, store_colors)
             
             table = dbc.Table.from_dataframe(df, striped=True, bordered=True, hover=True)
@@ -407,25 +407,24 @@ def create_worst_stores_table(year, store_colors, color_generator):
     worst_stores_data = fetch_data(f"http://localhost:5000/api/worst_5_stores")
     
     if worst_stores_data:
-        data = [store for store in worst_stores_data['worst_5_stores'] if store['year'] == year]  # Filter nach Jahr
+        data = [store for store in worst_stores_data['worst_5_stores'] if store['year'] == year]  
         if data:
             df = pd.DataFrame(data)
-            df['annual_sales'] = pd.to_numeric(df['annual_sales'], errors='coerce')  # Sicherstellen, dass annual_sales numerisch ist
-            df = df.sort_values(by='annual_sales', ascending=True).head(5)  # Aufsteigend sortieren und Top 5 auswählen
-            df = df[['storeid', 'annual_sales']]  # Spalten in der gewünschten Reihenfolge anordnen
-            df.columns = ['Store', 'Revenue in USD']  # Spalten umbenennen
+            df['annual_sales'] = pd.to_numeric(df['annual_sales'], errors='coerce')  
+            df = df.sort_values(by='annual_sales', ascending=True).head(5)  
+            df = df[['storeid', 'annual_sales']]  
+            df.columns = ['Store', 'Revenue in USD'] 
             
-            # Formatierung der Zahlen
             df['Revenue in USD'] = df['Revenue in USD'].apply(lambda x: f"${x:,.2f}")
             
-            # Farben für sich wiederholende Stores zuweisen
+            
             store_counts = df['Store'].value_counts()
             repeating_stores = store_counts[store_counts > 1].index
             for store_id in df['Store']:
                 if store_id in repeating_stores and store_id not in store_colors:
                     store_colors[store_id] = next(color_generator)
             
-            # Zeilenhervorhebung basierend auf Farben
+           
             styles = highlight_rows(df, store_colors)
             
             table = dbc.Table.from_dataframe(df, striped=True, bordered=True, hover=True)
